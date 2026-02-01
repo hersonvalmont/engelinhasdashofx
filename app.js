@@ -255,7 +255,7 @@ class ControladoriaApp {
                     descricao: conta.descricao,
                     valor: -conta.valor,
                     tipo: conta.tipo,
-                    statusConciliacao: 'PENDENTE',
+                    statusConciliacao: conta.status, // MUDANÇA: Usa o status real do arquivo
                     contaOmie: conta,
                     valorPrevisto: conta.valor,
                     valorRealizado: 0,
@@ -318,7 +318,7 @@ class ControladoriaApp {
                         const valor = this.parseOmieValor(values[columnMap.valor]);
                         const descricao = columnMap.descricao ? values[columnMap.descricao] : 'Sem descrição';
                         const projeto = columnMap.projeto ? values[columnMap.projeto] : 'Sem projeto';
-                        const status = columnMap.status ? values[columnMap.status] : 'PENDENTE';
+                        const status = columnMap.status !== undefined ? values[columnMap.status] : 'PENDENTE';
                         
                         if (data && valor) {
                             contas.push({
@@ -392,7 +392,7 @@ class ControladoriaApp {
                         const valor = this.parseOmieValor(row[columnMap.valor]);
                         const descricao = columnMap.descricao ? row[columnMap.descricao] : 'Sem descrição';
                         const projeto = columnMap.projeto ? row[columnMap.projeto] : 'Sem projeto';
-                        const status = columnMap.status ? row[columnMap.status] : 'PENDENTE';
+                        const status = columnMap.status !== undefined ? row[columnMap.status] : 'PENDENTE';
                         
                         if (data && valor) {
                             contas.push({
@@ -449,8 +449,8 @@ class ControladoriaApp {
                 map.projeto = index;
             }
             
-            // Status
-            if (h.includes('status') || h.includes('situacao')) {
+            // MUDANÇA: Status (Prioriza a coluna "Situação" do arquivo CSV)
+            if (h.includes('situa') || h.includes('status') || h.includes('situacao')) {
                 map.status = index;
             }
         });
@@ -575,7 +575,7 @@ class ControladoriaApp {
                     descricao: c.descricao,
                     valor: -c.valor,
                     tipo: 'saida',
-                    statusConciliacao: 'PENDENTE',
+                    statusConciliacao: c.status,
                     valorPrevisto: c.valor,
                     valorRealizado: 0,
                     projeto: c.projeto,
@@ -645,7 +645,7 @@ class ControladoriaApp {
             
             this.transacoesConciliadas.push({
                 ...transacao,
-                statusConciliacao,
+                statusConciliacao: contaConciliada ? contaConciliada.status : statusConciliacao,
                 contaOmie: contaConciliada,
                 valorPrevisto: contaConciliada ? contaConciliada.valor : 0,
                 valorRealizado: Math.abs(transacao.valor),
@@ -664,7 +664,7 @@ class ControladoriaApp {
                     descricao: conta.descricao,
                     valor: -conta.valor,
                     tipo: conta.tipo,
-                    statusConciliacao: 'PENDENTE',
+                    statusConciliacao: conta.status,
                     contaOmie: conta,
                     valorPrevisto: conta.valor,
                     valorRealizado: 0,
@@ -947,12 +947,11 @@ class ControladoriaApp {
     }
     
     getStatusBadge(status) {
-        const badges = {
-            'CONCILIADO': '<span class="status-badge status-conciliado"><i class="fas fa-check mr-1"></i>Conciliado</span>',
-            'NAO_PROVISIONADO': '<span class="status-badge status-nao-provisionado"><i class="fas fa-exclamation mr-1"></i>Não Provisionado</span>',
-            'PENDENTE': '<span class="status-badge status-pendente"><i class="fas fa-clock mr-1"></i>Pendente</span>'
-        };
-        return badges[status] || badges['PENDENTE'];
+        // MUDANÇA: Retorna o texto exato do status (Conciliado, Atrasado, etc) formatado
+        const s = (status || 'PENDENTE').toUpperCase();
+        if (s.includes('CONCILIADO')) return '<span class="status-badge status-conciliado"><i class="fas fa-check mr-1"></i>Conciliado</span>';
+        if (s.includes('ATRASADO')) return '<span class="status-badge status-nao-provisionado"><i class="fas fa-exclamation mr-1"></i>Atrasado</span>';
+        return `<span class="status-badge status-pendente"><i class="fas fa-clock mr-1"></i>${status}</span>`;
     }
     
     getTipoBadge(tipo) {
@@ -1001,10 +1000,10 @@ class ControladoriaApp {
         if (status) {
             const statusMap = {
                 'conciliado': 'CONCILIADO',
-                'nao_provisionado': 'NAO_PROVISIONADO',
+                'nao_provisionado': 'ATRASADO', // Mapeado para o termo do seu CSV
                 'pendente': 'PENDENTE'
             };
-            data = data.filter(item => item.statusConciliacao === statusMap[status]);
+            data = data.filter(item => (item.statusConciliacao || '').toUpperCase().includes(statusMap[status]));
         }
         
         // Filtro de tipo
