@@ -1,26 +1,9 @@
 const axios = require('axios');
 
-async function consultarDetalhes(appKey, appSecret, codigoLancamento) {
-  try {
-    const response = await axios.post(
-      'https://app.omie.com.br/api/v1/financas/contapagar/',
-      {
-        call: 'ConsultarContaPagar',
-        app_key: appKey,
-        app_secret: appSecret,
-        param: [{ codigo_lancamento_omie: codigoLancamento }]
-      },
-      { timeout: 5000 }
-    );
-
-    return response.data;
-  } catch {
-    return null;
-  }
-}
-
 async function buscarFornecedor(appKey, appSecret, codigoFornecedor) {
   try {
+    console.log(`  🔍 Buscando fornecedor ${codigoFornecedor}...`);
+    
     const response = await axios.post(
       'https://app.omie.com.br/api/v1/geral/clientesfornecedores/',
       {
@@ -32,14 +15,19 @@ async function buscarFornecedor(appKey, appSecret, codigoFornecedor) {
       { timeout: 5000 }
     );
 
-    return response.data.nome_fantasia || response.data.razao_social || null;
-  } catch {
+    const nome = response.data.nome_fantasia || response.data.razao_social || null;
+    console.log(`  ✅ Fornecedor ${codigoFornecedor}: ${nome}`);
+    return nome;
+  } catch (err) {
+    console.log(`  ❌ Erro ao buscar fornecedor ${codigoFornecedor}: ${err.message}`);
     return null;
   }
 }
 
 async function buscarProjeto(appKey, appSecret, codigoProjeto) {
   try {
+    console.log(`  🔍 Buscando projeto ${codigoProjeto}...`);
+    
     const response = await axios.post(
       'https://app.omie.com.br/api/v1/geral/projetos/',
       {
@@ -51,8 +39,11 @@ async function buscarProjeto(appKey, appSecret, codigoProjeto) {
       { timeout: 5000 }
     );
 
-    return response.data.nome || null;
-  } catch {
+    const nome = response.data.nome || null;
+    console.log(`  ✅ Projeto ${codigoProjeto}: ${nome}`);
+    return nome;
+  } catch (err) {
+    console.log(`  ❌ Erro ao buscar projeto ${codigoProjeto}: ${err.message}`);
     return null;
   }
 }
@@ -107,7 +98,6 @@ exports.handler = async (event, context) => {
     const MAX_PAGINAS = 15;
     let passou = false;
 
-    // PASSO 1: BUSCAR CONTAS
     while (paginaAtual <= MAX_PAGINAS && !passou) {
       const omieRequest = {
         call: 'ListarContasPagar',
@@ -169,7 +159,7 @@ exports.handler = async (event, context) => {
 
     console.log(`📦 ${todasContasFiltradas.length} contas encontradas`);
 
-    // PASSO 2: BUSCAR NOMES (máximo 30 para evitar timeout)
+    // BUSCAR NOMES
     const fornecedoresMap = new Map();
     const projetosMap = new Map();
 
@@ -190,7 +180,10 @@ exports.handler = async (event, context) => {
       })
     ]);
 
-    // PASSO 3: ENRIQUECER CONTAS
+    console.log(`📊 Fornecedores encontrados: ${fornecedoresMap.size}/${fornecedoresUnicos.length}`);
+    console.log(`📊 Projetos encontrados: ${projetosMap.size}/${projetosUnicos.length}`);
+
+    // ENRIQUECER CONTAS
     const contasEnriquecidas = todasContasFiltradas.map(conta => {
       const nomeFornecedor = fornecedoresMap.get(conta.codigo_cliente_fornecedor);
       const nomeProjeto = projetosMap.get(conta.codigo_projeto);
