@@ -26,21 +26,6 @@ exports.handler = async (event, context) => {
       };
     }
 
-    // Validar formato de datas
-    const dateRegex = /^\d{2}\/\d{2}\/\d{4}$/;
-    if (dataInicial && dataFinal) {
-      if (!dateRegex.test(dataInicial) || !dateRegex.test(dataFinal)) {
-        return {
-          statusCode: 400,
-          headers,
-          body: JSON.stringify({
-            success: false,
-            error: `Formato de data inválido. Recebido: ${dataInicial} e ${dataFinal}. Esperado: DD/MM/YYYY`
-          })
-        };
-      }
-    }
-
     // Estrutura oficial conforme documentação Omie
     const omieRequest = {
       call: 'ListarContasPagar',
@@ -56,7 +41,7 @@ exports.handler = async (event, context) => {
       }]
     };
     
-    console.log('📡 Buscando contas a pagar do Omie (sem filtro de data na API)...');
+    console.log('📡 REQUEST ENVIADO:', JSON.stringify(omieRequest, null, 2));
 
     const response = await axios.post(
       'https://app.omie.com.br/api/v1/financas/contapagar/',
@@ -69,6 +54,11 @@ exports.handler = async (event, context) => {
       }
     );
     
+    // DEBUG CRÍTICO
+    console.log('📥 RESPOSTA COMPLETA OMIE:', JSON.stringify(response.data, null, 2));
+    console.log('📊 Total de registros retornados:', response.data.total_de_registros);
+    console.log('📦 Contas retornadas:', response.data.conta_pagar_cadastro?.length || 0);
+    
     if (response.data.faultstring) {
       throw new Error(response.data.faultstring);
     }
@@ -77,11 +67,15 @@ exports.handler = async (event, context) => {
     let contas = response.data.conta_pagar_cadastro || [];
     let totalOriginal = contas.length;
     
+    console.log('🔍 Total ANTES do filtro:', totalOriginal);
+    
     if (dataInicial && dataFinal && contas.length > 0) {
       const [d1, m1, a1] = dataInicial.split('/');
       const [d2, m2, a2] = dataFinal.split('/');
       const dataIni = new Date(a1, m1 - 1, d1);
       const dataFim = new Date(a2, m2 - 1, d2);
+      
+      console.log('📅 Filtro de data:', dataIni, 'até', dataFim);
       
       contas = contas.filter(c => {
         if (!c.data_vencimento) return false;
@@ -90,7 +84,7 @@ exports.handler = async (event, context) => {
         return dataVenc >= dataIni && dataVenc <= dataFim;
       });
       
-      console.log(`✅ Filtrado: ${contas.length} de ${totalOriginal} contas entre ${dataInicial} e ${dataFinal}`);
+      console.log(`✅ DEPOIS do filtro: ${contas.length} de ${totalOriginal} contas`);
     }
 
     return {
@@ -112,6 +106,7 @@ exports.handler = async (event, context) => {
 
   } catch (error) {
     console.error('❌ Erro na Function:', error.message);
+    console.error('Stack:', error.stack);
     
     return {
       statusCode: 200,
