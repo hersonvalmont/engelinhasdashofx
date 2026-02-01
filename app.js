@@ -437,9 +437,11 @@ class ControladoriaApp {
                 map.valor = index;
             }
             
-            // Descrição
-            if (h.includes('descri') || h.includes('observ') || h.includes('historico') || h.includes('titulo')) {
-                map.descricao = index;
+            // Descrição (Priorizando Fornecedor/Nome Fantasia para Auditoria)
+            if (h.includes('fornecedor') || h.includes('fantasia') || h.includes('cliente') || h.includes('descri') || h.includes('observ') || h.includes('historico')) {
+                if (!map.descricao || h.includes('fornecedor') || h.includes('fantasia')) {
+                    map.descricao = index;
+                }
             }
             
             // Projeto
@@ -453,7 +455,7 @@ class ControladoriaApp {
             }
         });
         
-        console.log('🗺️ Mapeamento de colunas:', map);
+        console.log('🗺️ Mapeamento de colunas atualizado:', map);
         return map;
     }
     
@@ -596,7 +598,8 @@ class ControladoriaApp {
         return contas.map(conta => ({
             id: conta.codigo_lancamento_omie,
             data: this.parseAPIDate(conta.data_vencimento),
-            descricao: conta.observacao || conta.codigo_categoria || 'Sem descrição',
+            // MUDANÇA AQUI: Prioriza Nome Fantasia, se não houver, usa a observação
+            descricao: conta.nm_fantasia_fornecedor || conta.observacao || 'Sem fornecedor',
             valor: parseFloat(conta.valor_documento) || 0,
             projeto: conta.codigo_projeto || 'Sem projeto',
             status: conta.status_titulo || 'PENDENTE',
