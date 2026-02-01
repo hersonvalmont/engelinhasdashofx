@@ -596,19 +596,18 @@ class ControladoriaApp {
     }
 
     normalizeContasPagar(data) {
-        const contas = data.conta_pagar_lista || [];
-        
-        return contas.map(conta => ({
-            id: conta.codigo_lancamento_omie,
-            data: this.parseAPIDate(conta.data_vencimento),
-            // MUDANÇA: Prioriza Nome Fantasia vindo da API
-            descricao: conta.nm_fantasia_fornecedor || conta.observacao || 'Sem fornecedor',
-            valor: parseFloat(conta.valor_documento) || 0,
-            projeto: conta.codigo_projeto || 'Sem projeto',
-            status: conta.status_titulo || 'PENDENTE',
-            tipo: 'saida',
-            origem: 'OMIE'
-        }));
+    const contas = data.conta_pagar_cadastro || []; // ✅ CORRIGIDO
+    
+    return contas.map(conta => ({
+        id: conta.codigo_lancamento_omie,
+        data: this.parseAPIDate(conta.data_vencimento),
+        descricao: conta.nm_fantasia_fornecedor || conta.observacao || 'Sem fornecedor',
+        valor: parseFloat(conta.valor_documento) || 0,
+        projeto: conta.codigo_projeto || 'Sem projeto',
+        status: conta.status_titulo || 'PENDENTE',
+        tipo: 'saida',
+        origem: 'OMIE'
+    }));
     }
     
     // ==========================================
