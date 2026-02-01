@@ -525,15 +525,26 @@ class ControladoriaApp {
         this.showLoading(true);
         
         try {
-            const { dataInicial, dataFinal } = this.getDateRange();
+            // Pega as datas diretamente dos campos da tela para garantir precisão
+            const dStartRaw = document.getElementById('dateStart').value;
+            const dEndRaw = document.getElementById('dateEnd').value;
+
+            // Função interna de conversão para formato Omie (DD/MM/YYYY)
+            const formatarDataOmie = (isoDate) => {
+                if (!isoDate) return "";
+                const [ano, mes, dia] = isoDate.split('-');
+                return `${dia}/${mes}/${ano}`;
+            };
+
+            const dataInicialFormatada = formatarDataOmie(dStartRaw);
+            const dataFinalFormatada = formatarDataOmie(dEndRaw);
+
+            console.log('🔍 Auditoria de Saída Omie:', { dataInicialFormatada, dataFinalFormatada });
             
-            console.log('🔍 Iniciando busca de dados Omie...');
-            console.log('📅 Período:', this.formatDateAPI(dataInicial), 'até', this.formatDateAPI(dataFinal));
-            
-            // Buscar contas a pagar
+            // Buscar contas a pagar com o caminho absoluto do Netlify
             const contasPagarResponse = await axios.post('/.netlify/functions/omie-contas-pagar', {
-                dataInicial: this.formatDateAPI(dataInicial),
-                dataFinal: this.formatDateAPI(dataFinal),
+                dataInicial: dataInicialFormatada,
+                dataFinal: dataFinalFormatada,
                 page: 1,
                 registrosPorPagina: 500
             });
@@ -545,16 +556,15 @@ class ControladoriaApp {
                 console.log('✅ Contas a pagar carregadas:', this.contasPagar.length);
                 
                 if (this.contasPagar.length === 0) {
-                    this.showError('⚠️ Nenhuma conta a pagar encontrada para o período selecionado.');
+                    this.showError('⚠️ Nenhuma conta a pagar encontrada. Verifique se há lançamentos no Omie para estas datas.');
                 } else {
-                    alert(`✅ ${this.contasPagar.length} contas a pagar carregadas com sucesso!`);
+                    alert(`✅ Sucesso! ${this.contasPagar.length} lançamentos da Engelinhas importados.`);
                 }
             } else {
                 console.error('❌ Resposta sem sucesso:', contasPagarResponse.data);
-                this.showError('Erro: ' + (contasPagarResponse.data.error || 'Resposta inválida da API'));
+                this.showError('Erro Omie: ' + (contasPagarResponse.data.error || 'Resposta inválida da API'));
             }
             
-            // Realizar conciliação se houver dados OFX
             if (this.ofxData.length > 0) {
                 this.realizarConciliacao();
             }
@@ -564,41 +574,25 @@ class ControladoriaApp {
             
         } catch (error) {
             console.error('❌ Erro completo:', error);
-            console.error('❌ Status:', error.response?.status);
-            console.error('❌ Dados:', error.response?.data);
-            
             let errorMsg = 'Erro ao carregar dados da API Omie.\n\n';
-            
             if (error.response) {
-                errorMsg += `Status: ${error.response.status}\n`;
-                errorMsg += `Mensagem: ${error.response.data?.error || error.message}\n\n`;
-                
-                if (error.response.status === 404) {
-                    errorMsg += '❌ Endpoint não encontrado. Verifique se a Netlify Function está deployada corretamente.';
-                } else if (error.response.status === 500) {
-                    errorMsg += '❌ Erro no servidor. Verifique as variáveis de ambiente (OMIE_APP_KEY e OMIE_APP_SECRET) no Netlify.';
-                } else if (error.response.status === 401 || error.response.status === 403) {
-                    errorMsg += '❌ Credenciais inválidas. Verifique OMIE_APP_KEY e OMIE_APP_SECRET.';
-                }
-            } else if (error.request) {
-                errorMsg += '❌ Sem resposta do servidor. Verifique sua conexão com a internet.';
+                errorMsg += `Status: ${error.response.status}\nMensagem: ${error.response.data?.error || error.message}`;
             } else {
                 errorMsg += error.message;
             }
-            
             this.showError(errorMsg);
         } finally {
             this.showLoading(false);
         }
     }
-    
+
     normalizeContasPagar(data) {
         const contas = data.conta_pagar_lista || [];
         
         return contas.map(conta => ({
             id: conta.codigo_lancamento_omie,
             data: this.parseAPIDate(conta.data_vencimento),
-            // MUDANÇA AQUI: Prioriza Nome Fantasia, se não houver, usa a observação
+            // MUDANÇA: Prioriza Nome Fantasia vindo da API
             descricao: conta.nm_fantasia_fornecedor || conta.observacao || 'Sem fornecedor',
             valor: parseFloat(conta.valor_documento) || 0,
             projeto: conta.codigo_projeto || 'Sem projeto',
@@ -606,16 +600,6 @@ class ControladoriaApp {
             tipo: 'saida',
             origem: 'OMIE'
         }));
-    }
-    
-    parseAPIDate(dateStr) {
-        // Formato API: DD/MM/YYYY
-        if (!dateStr) return new Date();
-        const parts = dateStr.split('/');
-        if (parts.length === 3) {
-            return new Date(parts[2], parts[1] - 1, parts[0]);
-        }
-        return new Date(dateStr);
     }
     
     // ==========================================
