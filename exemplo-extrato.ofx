@@ -1,0 +1,129 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<OFX>
+    <SIGNONMSGSRSV1>
+        <SONRS>
+            <STATUS>
+                <CODE>0</CODE>
+                <SEVERITY>INFO</SEVERITY>
+            </STATUS>
+            <DTSERVER>20240115120000</DTSERVER>
+            <LANGUAGE>POR</LANGUAGE>
+        </SONRS>
+    </SIGNONMSGSRSV1>
+    <BANKMSGSRSV1>
+        <STMTTRNRS>
+            <TRNUID>1</TRNUID>
+            <STATUS>
+                <CODE>0</CODE>
+                <SEVERITY>INFO</SEVERITY>
+            </STATUS>
+            <STMTRS>
+                <CURDEF>BRL</CURDEF>
+                <BANKACCTFROM>
+                    <BANKID>001</BANKID>
+                    <ACCTID>12345-6</ACCTID>
+                    <ACCTTYPE>CHECKING</ACCTTYPE>
+                </BANKACCTFROM>
+                <BANKTRANLIST>
+                    <DTSTART>20240101</DTSTART>
+                    <DTEND>20240131</DTEND>
+                    
+                    <!-- Exemplo 1: Pagamento de fornecedor -->
+                    <STMTTRN>
+                        <TRNTYPE>DEBIT</TRNTYPE>
+                        <DTPOSTED>20240105</DTPOSTED>
+                        <TRNAMT>-1500.00</TRNAMT>
+                        <FITID>202401050001</FITID>
+                        <MEMO>Pagamento Fornecedor ABC - Material de Escritório</MEMO>
+                    </STMTTRN>
+                    
+                    <!-- Exemplo 2: Pagamento de salários -->
+                    <STMTTRN>
+                        <TRNTYPE>DEBIT</TRNTYPE>
+                        <DTPOSTED>20240105</DTPOSTED>
+                        <TRNAMT>-25000.00</TRNAMT>
+                        <FITID>202401050002</FITID>
+                        <MEMO>Pagamento Folha Salarial - Janeiro/2024</MEMO>
+                    </STMTTRN>
+                    
+                    <!-- Exemplo 3: Recebimento de cliente -->
+                    <STMTTRN>
+                        <TRNTYPE>CREDIT</TRNTYPE>
+                        <DTPOSTED>20240108</DTPOSTED>
+                        <TRNAMT>5000.00</TRNAMT>
+                        <FITID>202401080001</FITID>
+                        <MEMO>Recebimento Cliente XYZ - NF 001234</MEMO>
+                    </STMTTRN>
+                    
+                    <!-- Exemplo 4: Pagamento de aluguel -->
+                    <STMTTRN>
+                        <TRNTYPE>DEBIT</TRNTYPE>
+                        <DTPOSTED>20240110</DTPOSTED>
+                        <TRNAMT>-3500.00</TRNAMT>
+                        <FITID>202401100001</FITID>
+                        <MEMO>Aluguel Imóvel - Janeiro/2024</MEMO>
+                    </STMTTRN>
+                    
+                    <!-- Exemplo 5: Pagamento de conta de luz -->
+                    <STMTTRN>
+                        <TRNTYPE>DEBIT</TRNTYPE>
+                        <DTPOSTED>20240112</DTPOSTED>
+                        <TRNAMT>-850.00</TRNAMT>
+                        <FITID>202401120001</FITID>
+                        <MEMO>Energia Elétrica - CPFL</MEMO>
+                    </STMTTRN>
+                    
+                    <!-- Exemplo 6: Pagamento de internet -->
+                    <STMTTRN>
+                        <TRNTYPE>DEBIT</TRNTYPE>
+                        <DTPOSTED>20240115</DTPOSTED>
+                        <TRNAMT>-299.90</TRNAMT>
+                        <FITID>202401150001</FITID>
+                        <MEMO>Internet Fibra - Vivo</MEMO>
+                    </STMTTRN>
+                    
+                    <!-- Exemplo 7: Recebimento de serviços -->
+                    <STMTTRN>
+                        <TRNTYPE>CREDIT</TRNTYPE>
+                        <DTPOSTED>20240118</DTPOSTED>
+                        <TRNAMT>12000.00</TRNAMT>
+                        <FITID>202401180001</FITID>
+                        <MEMO>Prestação de Serviços - Projeto XPTO</MEMO>
+                    </STMTTRN>
+                    
+                    <!-- Exemplo 8: Pagamento de impostos -->
+                    <STMTTRN>
+                        <TRNTYPE>DEBIT</TRNTYPE>
+                        <DTPOSTED>20240120</DTPOSTED>
+                        <TRNAMT>-4500.00</TRNAMT>
+                        <FITID>202401200001</FITID>
+                        <MEMO>DAS - Simples Nacional - Ref: 12/2023</MEMO>
+                    </STMTTRN>
+                    
+                    <!-- Exemplo 9: Tarifa bancária -->
+                    <STMTTRN>
+                        <TRNTYPE>DEBIT</TRNTYPE>
+                        <DTPOSTED>20240125</DTPOSTED>
+                        <TRNAMT>-45.00</TRNAMT>
+                        <FITID>202401250001</FITID>
+                        <MEMO>Tarifa Manutenção Conta</MEMO>
+                    </STMTTRN>
+                    
+                    <!-- Exemplo 10: Compra equipamento -->
+                    <STMTTRN>
+                        <TRNTYPE>DEBIT</TRNTYPE>
+                        <DTPOSTED>20240128</DTPOSTED>
+                        <TRNAMT>-8900.00</TRNAMT>
+                        <FITID>202401280001</FITID>
+                        <MEMO>Notebook Dell - TI</MEMO>
+                    </STMTTRN>
+                    
+                </BANKTRANLIST>
+                <LEDGERBAL>
+                    <BALAMT>15405.10</BALAMT>
+                    <DTASOF>20240131</DTASOF>
+                </LEDGERBAL>
+            </STMTRS>
+        </STMTTRNRS>
+    </BANKMSGSRSV1>
+</OFX>
