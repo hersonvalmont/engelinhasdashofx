@@ -1,83 +1,71 @@
 const axios = require('axios');
 
-// Cache global persistente entre invocações
-const cacheGlobal = {
-  fornecedores: new Map(),
-  projetos: new Map(),
-  ultimaLimpeza: Date.now()
-};
-
-// Limpar cache a cada 1 hora
-function limparCacheSeNecessario() {
-  const UMA_HORA = 60 * 60 * 1000;
-  if (Date.now() - cacheGlobal.ultimaLimpeza > UMA_HORA) {
-    cacheGlobal.fornecedores.clear();
-    cacheGlobal.projetos.clear();
-    cacheGlobal.ultimaLimpeza = Date.now();
-    console.log('🧹 Cache limpo');
+async function buscarFornecedorLote(appKey, appSecret, codigos) {
+  const resultados = new Map();
+  
+  // Processar em lotes de 5 simultâneos
+  for (let i = 0; i < codigos.length; i += 5) {
+    const lote = codigos.slice(i, i + 5);
+    
+    const promessas = lote.map(async cod => {
+      try {
+        const response = await axios.post(
+          'https://app.omie.com.br/api/v1/geral/clientes/',
+          {
+            call: 'ConsultarCliente',
+            app_key: appKey,
+            app_secret: appSecret,
+            param: [{ codigo_cliente_omie: cod }]
+          },
+          { timeout: 5000 }
+        );
+        
+        const nome = response.data.nome_fantasia || response.data.razao_social || null;
+        if (nome) resultados.set(cod, nome);
+      } catch (err) {
+        // Ignorar erros
+      }
+    });
+    
+    await Promise.all(promessas);
+    await new Promise(resolve => setTimeout(resolve, 100)); // Delay entre lotes
   }
+  
+  return resultados;
 }
 
-async function buscarFornecedor(appKey, appSecret, codigoFornecedor) {
-  // Verificar cache primeiro
-  if (cacheGlobal.fornecedores.has(codigoFornecedor)) {
-    return cacheGlobal.fornecedores.get(codigoFornecedor);
-  }
-
-  try {
-    const response = await axios.post(
-      'https://app.omie.com.br/api/v1/geral/clientes/',
-      {
-        call: 'ConsultarCliente',
-        app_key: appKey,
-        app_secret: appSecret,
-        param: [{ codigo_cliente_omie: codigoFornecedor }]
-      },
-      { timeout: 5000 }
-    );
-
-    const nome = response.data.nome_fantasia || response.data.razao_social || null;
+async function buscarProjetoLote(appKey, appSecret, codigos) {
+  const resultados = new Map();
+  
+  // Processar em lotes de 5 simultâneos
+  for (let i = 0; i < codigos.length; i += 5) {
+    const lote = codigos.slice(i, i + 5);
     
-    // Salvar no cache
-    if (nome) {
-      cacheGlobal.fornecedores.set(codigoFornecedor, nome);
-    }
+    const promessas = lote.map(async cod => {
+      try {
+        const response = await axios.post(
+          'https://app.omie.com.br/api/v1/geral/projetos/',
+          {
+            call: 'ConsultarProjeto',
+            app_key: appKey,
+            app_secret: appSecret,
+            param: [{ codigo: cod }]
+          },
+          { timeout: 5000 }
+        );
+        
+        const nome = response.data.nome || null;
+        if (nome) resultados.set(cod, nome);
+      } catch (err) {
+        // Ignorar erros
+      }
+    });
     
-    return nome;
-  } catch (err) {
-    return null;
+    await Promise.all(promessas);
+    await new Promise(resolve => setTimeout(resolve, 100)); // Delay entre lotes
   }
-}
-
-async function buscarProjeto(appKey, appSecret, codigoProjeto) {
-  // Verificar cache primeiro
-  if (cacheGlobal.projetos.has(codigoProjeto)) {
-    return cacheGlobal.projetos.get(codigoProjeto);
-  }
-
-  try {
-    const response = await axios.post(
-      'https://app.omie.com.br/api/v1/geral/projetos/',
-      {
-        call: 'ConsultarProjeto',
-        app_key: appKey,
-        app_secret: appSecret,
-        param: [{ codigo: codigoProjeto }]
-      },
-      { timeout: 5000 }
-    );
-
-    const nome = response.data.nome || null;
-    
-    // Salvar no cache
-    if (nome) {
-      cacheGlobal.projetos.set(codigoProjeto, nome);
-    }
-    
-    return nome;
-  } catch (err) {
-    return null;
-  }
+  
+  return resultados;
 }
 
 exports.handler = async (event, context) => {
@@ -93,8 +81,6 @@ exports.handler = async (event, context) => {
   }
 
   try {
-    limparCacheSeNecessario();
-
     const { dataInicial, dataFinal } = JSON.parse(event.body || '{}');
 
     if (!process.env.OMIE_APP_KEY || !process.env.OMIE_APP_SECRET) {
@@ -197,28 +183,20 @@ exports.handler = async (event, context) => {
     const fornecedoresUnicos = [...new Set(todasContasFiltradas.map(c => c.codigo_cliente_fornecedor))];
     const projetosUnicos = [...new Set(todasContasFiltradas.map(c => c.codigo_projeto).filter(Boolean))];
 
-    const fornecedoresNaoCache = fornecedoresUnicos.filter(cod => !cacheGlobal.fornecedores.has(cod));
-    const projetosNaoCache = projetosUnicos.filter(cod => !cacheGlobal.projetos.has(cod));
+    console.log(`🔍 Buscando ${fornecedoresUnicos.length} fornecedores e ${projetosUnicos.length} projetos em paralelo...`);
 
-    console.log(`🔍 Cache: ${fornecedoresUnicos.length - fornecedoresNaoCache.length}/${fornecedoresUnicos.length} fornecedores, ${projetosUnicos.length - projetosNaoCache.length}/${projetosUnicos.length} projetos`);
-    console.log(`🔍 Buscando ${fornecedoresNaoCache.length} novos fornecedores e ${projetosNaoCache.length} novos projetos...`);
+    // Buscar em paralelo
+    const [fornecedoresMap, projetosMap] = await Promise.all([
+      buscarFornecedorLote(process.env.OMIE_APP_KEY, process.env.OMIE_APP_SECRET, fornecedoresUnicos),
+      buscarProjetoLote(process.env.OMIE_APP_KEY, process.env.OMIE_APP_SECRET, projetosUnicos)
+    ]);
 
-    // Buscar apenas fornecedores não cacheados
-    for (const cod of fornecedoresNaoCache) {
-      await buscarFornecedor(process.env.OMIE_APP_KEY, process.env.OMIE_APP_SECRET, cod);
-      await new Promise(resolve => setTimeout(resolve, 30)); // Delay 30ms
-    }
+    console.log(`📊 Encontrados: ${fornecedoresMap.size}/${fornecedoresUnicos.length} fornecedores, ${projetosMap.size}/${projetosUnicos.length} projetos`);
 
-    // Buscar apenas projetos não cacheados
-    for (const cod of projetosNaoCache) {
-      await buscarProjeto(process.env.OMIE_APP_KEY, process.env.OMIE_APP_SECRET, cod);
-      await new Promise(resolve => setTimeout(resolve, 30)); // Delay 30ms
-    }
-
-    // ENRIQUECER CONTAS (usando cache)
+    // ENRIQUECER CONTAS
     const contasEnriquecidas = todasContasFiltradas.map(conta => {
-      const nomeFornecedor = cacheGlobal.fornecedores.get(conta.codigo_cliente_fornecedor);
-      const nomeProjeto = cacheGlobal.projetos.get(conta.codigo_projeto);
+      const nomeFornecedor = fornecedoresMap.get(conta.codigo_cliente_fornecedor);
+      const nomeProjeto = projetosMap.get(conta.codigo_projeto);
 
       return {
         ...conta,
