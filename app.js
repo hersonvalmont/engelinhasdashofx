@@ -196,6 +196,9 @@ class ControladoriaApp {
         try {
             const { dataInicial, dataFinal } = this.getDateRange();
             
+            console.log('🔍 Iniciando busca de dados Omie...');
+            console.log('📅 Período:', this.formatDateAPI(dataInicial), 'até', this.formatDateAPI(dataFinal));
+            
             // Buscar contas a pagar
             const contasPagarResponse = await axios.post('/.netlify/functions/omie-contas-pagar', {
                 dataInicial: this.formatDateAPI(dataInicial),
@@ -204,9 +207,20 @@ class ControladoriaApp {
                 registrosPorPagina: 500
             });
             
+            console.log('📦 Resposta da API:', contasPagarResponse.data);
+            
             if (contasPagarResponse.data.success) {
                 this.contasPagar = this.normalizeContasPagar(contasPagarResponse.data.data);
                 console.log('✅ Contas a pagar carregadas:', this.contasPagar.length);
+                
+                if (this.contasPagar.length === 0) {
+                    this.showError('⚠️ Nenhuma conta a pagar encontrada para o período selecionado.');
+                } else {
+                    alert(`✅ ${this.contasPagar.length} contas a pagar carregadas com sucesso!`);
+                }
+            } else {
+                console.error('❌ Resposta sem sucesso:', contasPagarResponse.data);
+                this.showError('Erro: ' + (contasPagarResponse.data.error || 'Resposta inválida da API'));
             }
             
             // Realizar conciliação se houver dados OFX
@@ -218,8 +232,30 @@ class ControladoriaApp {
             this.updateLastUpdateTime();
             
         } catch (error) {
-            console.error('❌ Erro ao atualizar dados:', error);
-            this.showError('Erro ao carregar dados da API Omie. Verifique as credenciais.');
+            console.error('❌ Erro completo:', error);
+            console.error('❌ Status:', error.response?.status);
+            console.error('❌ Dados:', error.response?.data);
+            
+            let errorMsg = 'Erro ao carregar dados da API Omie.\n\n';
+            
+            if (error.response) {
+                errorMsg += `Status: ${error.response.status}\n`;
+                errorMsg += `Mensagem: ${error.response.data?.error || error.message}\n\n`;
+                
+                if (error.response.status === 404) {
+                    errorMsg += '❌ Endpoint não encontrado. Verifique se a Netlify Function está deployada corretamente.';
+                } else if (error.response.status === 500) {
+                    errorMsg += '❌ Erro no servidor. Verifique as variáveis de ambiente (OMIE_APP_KEY e OMIE_APP_SECRET) no Netlify.';
+                } else if (error.response.status === 401 || error.response.status === 403) {
+                    errorMsg += '❌ Credenciais inválidas. Verifique OMIE_APP_KEY e OMIE_APP_SECRET.';
+                }
+            } else if (error.request) {
+                errorMsg += '❌ Sem resposta do servidor. Verifique sua conexão com a internet.';
+            } else {
+                errorMsg += error.message;
+            }
+            
+            this.showError(errorMsg);
         } finally {
             this.showLoading(false);
         }

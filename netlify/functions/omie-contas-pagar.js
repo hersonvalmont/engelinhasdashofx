@@ -23,7 +23,25 @@ exports.handler = async (event, context) => {
   }
 
   try {
+    console.log('🔍 Iniciando busca de contas a pagar...');
+    
+    // Verificar variáveis de ambiente
+    if (!process.env.OMIE_APP_KEY || !process.env.OMIE_APP_SECRET) {
+      console.error('❌ Variáveis de ambiente não configuradas!');
+      return {
+        statusCode: 500,
+        headers,
+        body: JSON.stringify({
+          success: false,
+          error: 'Variáveis de ambiente OMIE_APP_KEY e OMIE_APP_SECRET não configuradas no Netlify'
+        })
+      };
+    }
+    
     const { dataInicial, dataFinal, page = 1, registrosPorPagina = 100 } = JSON.parse(event.body || '{}');
+    
+    console.log('📅 Período:', dataInicial, 'até', dataFinal);
+    console.log('📄 Página:', page, 'Registros:', registrosPorPagina);
 
     const omieRequest = {
       call: 'ListarContasPagar',
@@ -38,6 +56,8 @@ exports.handler = async (event, context) => {
         ordenar_por: 'DATA_VENCIMENTO'
       }]
     };
+    
+    console.log('📤 Enviando requisição para Omie...');
 
     const response = await axios.post(
       'https://app.omie.com.br/api/v1/financas/contapagar/',
@@ -49,6 +69,9 @@ exports.handler = async (event, context) => {
         timeout: 30000
       }
     );
+    
+    console.log('✅ Resposta recebida da Omie');
+    console.log('📊 Total de registros:', response.data.conta_pagar_lista?.length || 0);
 
     return {
       statusCode: 200,
@@ -61,7 +84,13 @@ exports.handler = async (event, context) => {
     };
 
   } catch (error) {
-    console.error('Erro ao buscar contas a pagar:', error.message);
+    console.error('❌ Erro ao buscar contas a pagar:', error.message);
+    console.error('❌ Stack:', error.stack);
+    
+    if (error.response) {
+      console.error('❌ Status da resposta Omie:', error.response.status);
+      console.error('❌ Dados da resposta Omie:', error.response.data);
+    }
     
     return {
       statusCode: error.response?.status || 500,
@@ -69,7 +98,8 @@ exports.handler = async (event, context) => {
       body: JSON.stringify({
         success: false,
         error: error.message,
-        details: error.response?.data || null
+        details: error.response?.data || null,
+        stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
       })
     };
   }
