@@ -609,6 +609,12 @@ class ControladoriaApp {
         origem: 'OMIE'
     }));
     }
+
+    parseAPIDate(dateStr) {
+    if (!dateStr) return new Date();
+    const [d, m, y] = dateStr.split('/');
+    return new Date(y, m - 1, d);
+}
     
     // ==========================================
     // LÓGICA DE CONCILIAÇÃO (CFO RULES)
