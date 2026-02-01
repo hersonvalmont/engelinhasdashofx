@@ -13,7 +13,7 @@ exports.handler = async (event, context) => {
   }
 
   try {
-    const { dataInicial, dataFinal, page = 1, registrosPorPagina = 500 } = JSON.parse(event.body || '{}');
+    const { dataInicial, dataFinal } = JSON.parse(event.body || '{}');
 
     if (!process.env.OMIE_APP_KEY || !process.env.OMIE_APP_SECRET) {
       return {
@@ -26,59 +26,108 @@ exports.handler = async (event, context) => {
       };
     }
 
-    console.log('📡 Buscando página', page, '(ordem decrescente)');
-
-    const omieRequest = {
-      call: 'ListarContasPagar',
-      app_key: process.env.OMIE_APP_KEY,
-      app_secret: process.env.OMIE_APP_SECRET,
-      param: [{
-        pagina: page,
-        registros_por_pagina: registrosPorPagina,
-        apenas_importado_api: 'N',
-        ordenar_por: 'DATA_VENCIMENTO',
-        ordem_descrescente: 'S', // ← MUDANÇA CRÍTICA
-        exibir_obs: 'S'
-      }]
-    };
-
-    const response = await axios.post(
-      'https://app.omie.com.br/api/v1/financas/contapagar/',
-      omieRequest,
-      { timeout: 25000, headers: { 'Content-Type': 'application/json' } }
-    );
-
-    if (response.data.faultstring) {
-      throw new Error(response.data.faultstring);
+    if (!dataInicial || !dataFinal) {
+      return {
+        statusCode: 400,
+        headers,
+        body: JSON.stringify({ 
+          success: false, 
+          error: 'dataInicial e dataFinal são obrigatórios.' 
+        })
+      };
     }
 
-    let contas = response.data.conta_pagar_cadastro || [];
-    const totalOriginal = contas.length;
+    // Converter datas do filtro
+    const [d1, m1, a1] = dataInicial.split('/');
+    const [d2, m2, a2] = dataFinal.split('/');
+    const dataIni = new Date(a1, m1 - 1, d1);
+    const dataFim = new Date(a2, m2 - 1, d2);
+    const anoAlvo = parseInt(a1);
 
-    // LOG DAS 3 PRIMEIRAS DATAS PARA VALIDAÇÃO
-    if (contas.length > 0) {
-      console.log('📅 AMOSTRA (primeiras 3 datas):');
-      contas.slice(0, 3).forEach((c, i) => {
-        console.log(`  ${i + 1}. ${c.data_vencimento} - R$ ${c.valor_documento}`);
-      });
-    }
+    console.log(`🎯 Buscando contas de ${dataInicial} a ${dataFinal} (ano ${anoAlvo})`);
 
-    // FILTRAR POR DATA NO BACKEND
-    if (dataInicial && dataFinal && contas.length > 0) {
-      const [d1, m1, a1] = dataInicial.split('/');
-      const [d2, m2, a2] = dataFinal.split('/');
-      const dataIni = new Date(a1, m1 - 1, d1);
-      const dataFim = new Date(a2, m2 - 1, d2);
+    let todasContasFiltradas = [];
+    let paginaAtual = 1;
+    const MAX_PAGINAS = 20; // Proteção
+    let encontrouAnoAlvo = false;
+    let passouAnoAlvo = false;
 
-      contas = contas.filter(c => {
+    // BUSCAR PÁGINAS ATÉ COBRIR O PERÍODO
+    while (paginaAtual <= MAX_PAGINAS && !passouAnoAlvo) {
+      const omieRequest = {
+        call: 'ListarContasPagar',
+        app_key: process.env.OMIE_APP_KEY,
+        app_secret: process.env.OMIE_APP_SECRET,
+        param: [{
+          pagina: paginaAtual,
+          registros_por_pagina: 500,
+          apenas_importado_api: 'N',
+          ordenar_por: 'DATA_VENCIMENTO',
+          ordem_descrescente: 'S',
+          exibir_obs: 'S'
+        }]
+      };
+
+      console.log(`📄 Buscando página ${paginaAtual}...`);
+
+      const response = await axios.post(
+        'https://app.omie.com.br/api/v1/financas/contapagar/',
+        omieRequest,
+        { timeout: 25000, headers: { 'Content-Type': 'application/json' } }
+      );
+
+      if (response.data.faultstring) {
+        throw new Error(response.data.faultstring);
+      }
+
+      const contas = response.data.conta_pagar_cadastro || [];
+
+      if (contas.length === 0) break;
+
+      // Verificar ano da primeira e última conta desta página
+      const primeiraData = contas[0]?.data_vencimento;
+      const ultimaData = contas[contas.length - 1]?.data_vencimento;
+      
+      if (primeiraData && ultimaData) {
+        const [,,aPrimeiro] = primeiraData.split('/');
+        const [,,aUltimo] = ultimaData.split('/');
+        console.log(`📅 Página ${paginaAtual}: ${primeiraData} até ${ultimaData}`);
+
+        const anoPrimeiro = parseInt(aPrimeiro);
+        const anoUltimo = parseInt(aUltimo);
+
+        // Se página contém ou passou pelo ano alvo
+        if (anoPrimeiro >= anoAlvo && anoUltimo <= anoAlvo) {
+          encontrouAnoAlvo = true;
+        }
+
+        // Se já passou do ano alvo (chegou em anos anteriores)
+        if (anoUltimo < anoAlvo) {
+          passouAnoAlvo = true;
+        }
+      }
+
+      // Filtrar contas desta página
+      const contasFiltradas = contas.filter(c => {
         if (!c.data_vencimento) return false;
         const [d, m, a] = c.data_vencimento.split('/');
         const dataVenc = new Date(a, m - 1, d);
         return dataVenc >= dataIni && dataVenc <= dataFim;
       });
 
-      console.log(`✅ Filtrado: ${contas.length} de ${totalOriginal} contas (${dataInicial} a ${dataFinal})`);
+      todasContasFiltradas.push(...contasFiltradas);
+      console.log(`✅ Página ${paginaAtual}: ${contasFiltradas.length} contas no período`);
+
+      // Se já passou do ano alvo, pode parar
+      if (passouAnoAlvo && encontrouAnoAlvo) {
+        console.log('🎯 Período completo coberto');
+        break;
+      }
+
+      paginaAtual++;
     }
+
+    console.log(`📊 TOTAL FINAL: ${todasContasFiltradas.length} contas entre ${dataInicial} e ${dataFinal}`);
 
     return {
       statusCode: 200,
@@ -86,12 +135,12 @@ exports.handler = async (event, context) => {
       body: JSON.stringify({
         success: true,
         data: {
-          pagina: response.data.pagina,
-          total_de_paginas: response.data.total_de_paginas,
-          registros: contas.length,
-          total_de_registros: response.data.total_de_registros,
-          total_sem_filtro: totalOriginal,
-          conta_pagar_cadastro: contas
+          pagina: 1,
+          total_de_paginas: 1,
+          registros: todasContasFiltradas.length,
+          total_de_registros: todasContasFiltradas.length,
+          paginas_consultadas: paginaAtual - 1,
+          conta_pagar_cadastro: todasContasFiltradas
         },
         timestamp: new Date().toISOString()
       })
@@ -104,7 +153,7 @@ exports.handler = async (event, context) => {
       headers,
       body: JSON.stringify({
         success: false,
-        error: error.response?.data?.faultstring || error.message,
+        error: error.message,
         details: error.response?.data || null
       })
     };
