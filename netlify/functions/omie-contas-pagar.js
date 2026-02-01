@@ -61,7 +61,8 @@ exports.handler = async (event, context) => {
           apenas_importado_api: 'N',
           ordenar_por: 'DATA_VENCIMENTO',
           ordem_descrescente: 'S',
-          exibir_obs: 'S'
+          exibir_obs: 'S',
+          exibir_detalhes: 'S' // ✅ ADICIONAR PARA VER MAIS CAMPOS
         }]
       };
 
@@ -78,11 +79,12 @@ exports.handler = async (event, context) => {
       const contas = response.data.conta_pagar_cadastro || [];
       if (contas.length === 0) break;
 
-      // DEBUG: LOGAR TODOS OS CAMPOS DA PRIMEIRA CONTA
+      // DEBUG: LOGAR TODOS OS CAMPOS DISPONÍVEIS
       if (paginaAtual === 1 && contas.length > 0) {
-        console.log('🔍 ========== ESTRUTURA COMPLETA DA CONTA ==========');
+        console.log('🔍 TODOS OS CAMPOS DISPONÍVEIS:');
+        console.log(JSON.stringify(Object.keys(contas[0]), null, 2));
+        console.log('🔍 PRIMEIRA CONTA COMPLETA:');
         console.log(JSON.stringify(contas[0], null, 2));
-        console.log('🔍 ================================================');
       }
 
       const primeira = contas[0]?.data_vencimento;
