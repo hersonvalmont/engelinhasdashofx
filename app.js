@@ -525,62 +525,71 @@ class ControladoriaApp {
         this.showLoading(true);
         
         try {
-            // Pega as datas diretamente dos campos da tela para garantir precisão
-            const dStartRaw = document.getElementById('dateStart').value;
-            const dEndRaw = document.getElementById('dateEnd').value;
+            // DEBUG DE AUDITORIA: Captura direta dos elementos do DOM
+            const dStartInput = document.getElementById('dateStart').value; // Formato YYYY-MM-DD
+            const dEndInput = document.getElementById('dateEnd').value;
 
-            // Função interna de conversão para formato Omie (DD/MM/YYYY)
-            const formatarDataOmie = (isoDate) => {
-                if (!isoDate) return "";
-                const [ano, mes, dia] = isoDate.split('-');
-                return `${dia}/${mes}/${ano}`;
-            };
+            if (!dStartInput || dEndInput === "") {
+                throw new Error("Datas de início ou fim não preenchidas.");
+            }
 
-            const dataInicialFormatada = formatarDataOmie(dStartRaw);
-            const dataFinalFormatada = formatarDataOmie(dEndRaw);
-
-            console.log('🔍 Auditoria de Saída Omie:', { dataInicialFormatada, dataFinalFormatada });
+            // Conversão manual e segura para DD/MM/YYYY (O que o Omie exige)
+            const [y1, m1, d1] = dStartInput.split('-');
+            const [y2, m2, d2] = dEndInput.split('-');
             
-            // Buscar contas a pagar com o caminho absoluto do Netlify
-            const contasPagarResponse = await axios.post('/.netlify/functions/omie-contas-pagar', {
-                dataInicial: dataInicialFormatada,
-                dataFinal: dataFinalFormatada,
+            const dataInicialOmie = `${d1}/${m1}/${y1}`;
+            const dataFinalOmie = `${d2}/${m2}/${y2}`;
+
+            console.log('🚀 Enviando para Omie:', { dataInicialOmie, dataFinalOmie });
+
+            // Chamada direta para a Function do Netlify
+            const response = await axios.post('/.netlify/functions/omie-contas-pagar', {
+                dataInicial: dataInicialOmie,
+                dataFinal: dataFinalOmie,
                 page: 1,
                 registrosPorPagina: 500
             });
             
-            console.log('📦 Resposta da API:', contasPagarResponse.data);
+            console.log('📦 Resposta bruta do Omie:', response.data);
             
-            if (contasPagarResponse.data.success) {
-                this.contasPagar = this.normalizeContasPagar(contasPagarResponse.data.data);
-                console.log('✅ Contas a pagar carregadas:', this.contasPagar.length);
+            if (response.data.success) {
+                // Aqui usamos a sua normalizeContasPagar que já mapeia o Nome Fantasia
+                this.contasPagar = this.normalizeContasPagar(response.data.data);
                 
                 if (this.contasPagar.length === 0) {
-                    this.showError('⚠️ Nenhuma conta a pagar encontrada. Verifique se há lançamentos no Omie para estas datas.');
+                    alert('⚠️ Conexão OK, mas o Omie não retornou nenhum lançamento para estas datas.');
                 } else {
-                    alert(`✅ Sucesso! ${this.contasPagar.length} lançamentos da Engelinhas importados.`);
+                    alert(`✅ Sucesso! ${this.contasPagar.length} lançamentos importados.`);
                 }
             } else {
-                console.error('❌ Resposta sem sucesso:', contasPagarResponse.data);
-                this.showError('Erro Omie: ' + (contasPagarResponse.data.error || 'Resposta inválida da API'));
+                throw new Error(response.data.error || 'Erro na resposta da API');
             }
             
+            // Re-executa conciliação se já houver OFX carregado
             if (this.ofxData.length > 0) {
                 this.realizarConciliacao();
+            } else {
+                // Se não houver OFX, preenche a tabela apenas com os dados do Omie
+                this.transacoesConciliadas = this.contasPagar.map(c => ({
+                    data: c.data,
+                    descricao: c.descricao,
+                    valor: -c.valor,
+                    tipo: 'saida',
+                    statusConciliacao: 'PENDENTE',
+                    valorPrevisto: c.valor,
+                    valorRealizado: 0,
+                    projeto: c.projeto,
+                    origem: 'OMIE'
+                }));
             }
             
             this.updateDashboard();
             this.updateLastUpdateTime();
             
         } catch (error) {
-            console.error('❌ Erro completo:', error);
-            let errorMsg = 'Erro ao carregar dados da API Omie.\n\n';
-            if (error.response) {
-                errorMsg += `Status: ${error.response.status}\nMensagem: ${error.response.data?.error || error.message}`;
-            } else {
-                errorMsg += error.message;
-            }
-            this.showError(errorMsg);
+            console.error('❌ Falha no Debug:', error);
+            const msg = error.response?.data?.error || error.message;
+            alert('ERRO DE INTEGRAÇÃO: ' + msg);
         } finally {
             this.showLoading(false);
         }
