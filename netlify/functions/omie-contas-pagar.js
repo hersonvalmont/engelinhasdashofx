@@ -13,7 +13,7 @@ exports.handler = async (event, context) => {
   }
 
   try {
-    const { dataInicial, dataFinal, page = 1, registrosPorPagina = 500 } = JSON.parse(event.body || '{}');
+    const { dataInicial, dataFinal, registrosPorPagina = 500 } = JSON.parse(event.body || '{}');
 
     if (!process.env.OMIE_APP_KEY || !process.env.OMIE_APP_SECRET) {
       return {
@@ -26,65 +26,75 @@ exports.handler = async (event, context) => {
       };
     }
 
-    // Estrutura oficial conforme documentação Omie
-    const omieRequest = {
-      call: 'ListarContasPagar',
-      app_key: process.env.OMIE_APP_KEY,
-      app_secret: process.env.OMIE_APP_SECRET,
-      param: [{
-        pagina: page,
-        registros_por_pagina: registrosPorPagina,
-        apenas_importado_api: 'N',
-        ordenar_por: 'DATA_VENCIMENTO',
-        ordem_descrescente: 'N',
-        exibir_obs: 'S'
-      }]
-    };
-    
-    console.log('📡 REQUEST ENVIADO:', JSON.stringify(omieRequest, null, 2));
+    console.log('📡 Buscando contas do Omie (todas as páginas)...');
+    console.log('📅 Filtro solicitado:', dataInicial, 'até', dataFinal);
 
-    const response = await axios.post(
-      'https://app.omie.com.br/api/v1/financas/contapagar/',
-      omieRequest,
-      { 
-        timeout: 30000,
-        headers: {
-          'Content-Type': 'application/json'
+    // BUSCAR TODAS AS PÁGINAS
+    let todasContas = [];
+    let paginaAtual = 1;
+    let totalPaginas = 1;
+    const MAX_PAGINAS = 50; // Proteção contra loop infinito
+
+    do {
+      const omieRequest = {
+        call: 'ListarContasPagar',
+        app_key: process.env.OMIE_APP_KEY,
+        app_secret: process.env.OMIE_APP_SECRET,
+        param: [{
+          pagina: paginaAtual,
+          registros_por_pagina: registrosPorPagina,
+          apenas_importado_api: 'N',
+          ordenar_por: 'DATA_VENCIMENTO',
+          ordem_descrescente: 'N',
+          exibir_obs: 'S'
+        }]
+      };
+
+      console.log(`📄 Buscando página ${paginaAtual}...`);
+
+      const response = await axios.post(
+        'https://app.omie.com.br/api/v1/financas/contapagar/',
+        omieRequest,
+        { 
+          timeout: 30000,
+          headers: { 'Content-Type': 'application/json' }
         }
-      }
-    );
-    
-    // DEBUG CRÍTICO
-    console.log('📥 RESPOSTA COMPLETA OMIE:', JSON.stringify(response.data, null, 2));
-    console.log('📊 Total de registros retornados:', response.data.total_de_registros);
-    console.log('📦 Contas retornadas:', response.data.conta_pagar_cadastro?.length || 0);
-    
-    if (response.data.faultstring) {
-      throw new Error(response.data.faultstring);
-    }
+      );
 
-    // Filtrar por data de vencimento no backend
-    let contas = response.data.conta_pagar_cadastro || [];
-    let totalOriginal = contas.length;
-    
-    console.log('🔍 Total ANTES do filtro:', totalOriginal);
-    
-    if (dataInicial && dataFinal && contas.length > 0) {
+      if (response.data.faultstring) {
+        throw new Error(response.data.faultstring);
+      }
+
+      const contas = response.data.conta_pagar_cadastro || [];
+      todasContas.push(...contas);
+      
+      totalPaginas = response.data.total_de_paginas || 1;
+      
+      console.log(`✅ Página ${paginaAtual}/${totalPaginas}: ${contas.length} registros (total acumulado: ${todasContas.length})`);
+
+      paginaAtual++;
+
+    } while (paginaAtual <= totalPaginas && paginaAtual <= MAX_PAGINAS);
+
+    console.log(`📦 TOTAL BRUTO: ${todasContas.length} contas`);
+
+    // FILTRAR POR DATA
+    let contasFiltradas = todasContas;
+
+    if (dataInicial && dataFinal && todasContas.length > 0) {
       const [d1, m1, a1] = dataInicial.split('/');
       const [d2, m2, a2] = dataFinal.split('/');
       const dataIni = new Date(a1, m1 - 1, d1);
       const dataFim = new Date(a2, m2 - 1, d2);
-      
-      console.log('📅 Filtro de data:', dataIni, 'até', dataFim);
-      
-      contas = contas.filter(c => {
+
+      contasFiltradas = todasContas.filter(c => {
         if (!c.data_vencimento) return false;
         const [d, m, a] = c.data_vencimento.split('/');
         const dataVenc = new Date(a, m - 1, d);
         return dataVenc >= dataIni && dataVenc <= dataFim;
       });
-      
-      console.log(`✅ DEPOIS do filtro: ${contas.length} de ${totalOriginal} contas`);
+
+      console.log(`🔍 DEPOIS do filtro: ${contasFiltradas.length} de ${todasContas.length} contas`);
     }
 
     return {
@@ -93,12 +103,12 @@ exports.handler = async (event, context) => {
       body: JSON.stringify({
         success: true,
         data: {
-          pagina: response.data.pagina,
-          total_de_paginas: response.data.total_de_paginas,
-          registros: contas.length,
-          total_de_registros: contas.length,
-          total_sem_filtro: totalOriginal,
-          conta_pagar_cadastro: contas
+          pagina: 1,
+          total_de_paginas: 1,
+          registros: contasFiltradas.length,
+          total_de_registros: contasFiltradas.length,
+          total_sem_filtro: todasContas.length,
+          conta_pagar_cadastro: contasFiltradas
         },
         timestamp: new Date().toISOString()
       })
@@ -107,7 +117,7 @@ exports.handler = async (event, context) => {
   } catch (error) {
     console.error('❌ Erro na Function:', error.message);
     console.error('Stack:', error.stack);
-    
+
     return {
       statusCode: 200,
       headers,
