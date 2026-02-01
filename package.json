@@ -1,0 +1,20 @@
+{
+  "name": "engelinhas-controladoria",
+  "version": "1.0.0",
+  "description": "Dashboard de Controladoria para Engelinhas - Auditoria e Fluxo de Caixa",
+  "main": "index.html",
+  "scripts": {
+    "dev": "netlify dev",
+    "build": "echo 'Build complete'",
+    "deploy": "netlify deploy --prod"
+  },
+  "keywords": ["dashboard", "controladoria", "omie", "ofx", "auditoria"],
+  "author": "Engelinhas",
+  "license": "MIT",
+  "dependencies": {
+    "axios": "^1.6.0"
+  },
+  "devDependencies": {
+    "netlify-cli": "^17.0.0"
+  }
+}

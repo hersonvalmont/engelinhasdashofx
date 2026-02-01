@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="pt-BR" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Engelinhas - Dashboard Controladoria</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css">
+    
+    <!-- OFX Parser -->
+    <script src="https://cdn.jsdelivr.net/npm/ofx@0.4.0/dist/ofx.min.js"></script>
+    
+    <!-- SheetJS para exportação XLSX -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    
+    <!-- Axios -->
+    <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
+    
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+        
+        * {
+            font-family: 'Inter', sans-serif;
+        }
+        
+        body {
+            background: #0a0a0a;
+            color: #e5e5e5;
+        }
+        
+        .glass-effect {
+            background: rgba(20, 20, 20, 0.7);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+        
+        .glow-border {
+            box-shadow: 0 0 20px rgba(59, 130, 246, 0.3);
+            border: 1px solid rgba(59, 130, 246, 0.5);
+        }
+        
+        .status-badge {
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+        
+        .status-conciliado {
+            background: rgba(34, 197, 94, 0.2);
+            color: #22c55e;
+            border: 1px solid #22c55e;
+        }
+        
+        .status-nao-provisionado {
+            background: rgba(234, 179, 8, 0.2);
+            color: #eab308;
+            border: 1px solid #eab308;
+        }
+        
+        .status-pendente {
+            background: rgba(239, 68, 68, 0.2);
+            color: #ef4444;
+            border: 1px solid #ef4444;
+        }
+        
+        .drag-drop-zone {
+            border: 2px dashed rgba(59, 130, 246, 0.5);
+            transition: all 0.3s;
+        }
+        
+        .drag-drop-zone.dragging {
+            border-color: #3b82f6;
+            background: rgba(59, 130, 246, 0.1);
+            transform: scale(1.02);
+        }
+        
+        .sidebar {
+            width: 280px;
+            position: fixed;
+            left: 0;
+            top: 0;
+            height: 100vh;
+            overflow-y: auto;
+            z-index: 50;
+        }
+        
+        .main-content {
+            margin-left: 280px;
+            padding: 24px;
+        }
+        
+        .stat-card {
+            transition: transform 0.2s;
+        }
+        
+        .stat-card:hover {
+            transform: translateY(-4px);
+        }
+        
+        .table-row:hover {
+            background: rgba(59, 130, 246, 0.05);
+        }
+        
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        
+        ::-webkit-scrollbar-track {
+            background: #1a1a1a;
+        }
+        
+        ::-webkit-scrollbar-thumb {
+            background: #3b82f6;
+            border-radius: 4px;
+        }
+        
+        ::-webkit-scrollbar-thumb:hover {
+            background: #2563eb;
+        }
+        
+        .spinner {
+            border: 3px solid rgba(59, 130, 246, 0.3);
+            border-top: 3px solid #3b82f6;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <!-- Sidebar -->
+    <div class="sidebar glass-effect p-6">
+        <!-- Logo -->
+        <div class="mb-8">
+            <h1 class="text-2xl font-bold text-blue-500 flex items-center gap-2">
+                <i class="fas fa-chart-line"></i>
+                Engelinhas
+            </h1>
+            <p class="text-xs text-gray-400 mt-1">Dashboard de Controladoria</p>
+        </div>
+        
+        <!-- Upload OFX -->
+        <div class="mb-6">
+            <label class="block text-sm font-semibold mb-2 text-gray-300">
+                <i class="fas fa-file-upload mr-2"></i>Importar OFX
+            </label>
+            <div id="dropZone" class="drag-drop-zone p-6 rounded-lg text-center cursor-pointer">
+                <i class="fas fa-cloud-upload-alt text-4xl text-blue-500 mb-2"></i>
+                <p class="text-sm text-gray-400">Arraste o arquivo OFX ou clique</p>
+                <input type="file" id="ofxFile" accept=".ofx" class="hidden">
+            </div>
+            <div id="ofxStatus" class="mt-2 text-xs text-gray-400"></div>
+        </div>
+        
+        <!-- Filtros -->
+        <div class="space-y-4">
+            <div>
+                <label class="block text-sm font-semibold mb-2 text-gray-300">
+                    <i class="fas fa-calendar mr-2"></i>Período
+                </label>
+                <select id="filterPeriod" class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:border-blue-500 focus:outline-none">
+                    <option value="month">Este Mês (Janeiro)</option>
+                    <option value="week">Esta Semana</option>
+                    <option value="today">Hoje</option>
+                    <option value="custom">Personalizado</option>
+                </select>
+            </div>
+            
+            <div id="customDateRange" class="hidden space-y-2">
+                <input type="date" id="dateStart" class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:border-blue-500 focus:outline-none">
+                <input type="date" id="dateEnd" class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:border-blue-500 focus:outline-none">
+            </div>
+            
+            <div>
+                <label class="block text-sm font-semibold mb-2 text-gray-300">
+                    <i class="fas fa-project-diagram mr-2"></i>Projeto / Centro de Custo
+                </label>
+                <select id="filterProject" class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:border-blue-500 focus:outline-none">
+                    <option value="">Todos</option>
+                </select>
+            </div>
+            
+            <div>
+                <label class="block text-sm font-semibold mb-2 text-gray-300">
+                    <i class="fas fa-check-circle mr-2"></i>Status de Pagamento
+                </label>
+                <select id="filterStatus" class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:border-blue-500 focus:outline-none">
+                    <option value="">Todos</option>
+                    <option value="conciliado">Conciliado</option>
+                    <option value="nao_provisionado">Não Provisionado</option>
+                    <option value="pendente">Pendente</option>
+                </select>
+            </div>
+            
+            <div>
+                <label class="block text-sm font-semibold mb-2 text-gray-300">
+                    <i class="fas fa-exchange-alt mr-2"></i>Tipo de Lançamento
+                </label>
+                <select id="filterType" class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:border-blue-500 focus:outline-none">
+                    <option value="">Todos</option>
+                    <option value="entrada">Entrada</option>
+                    <option value="saida">Saída</option>
+                </select>
+            </div>
+        </div>
+        
+        <!-- Ações -->
+        <div class="mt-6 space-y-2">
+            <button id="btnRefresh" class="w-full bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-semibold text-sm transition">
+                <i class="fas fa-sync-alt mr-2"></i>Atualizar Dados
+            </button>
+            <button id="btnExport" class="w-full bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-semibold text-sm transition">
+                <i class="fas fa-file-excel mr-2"></i>Exportar XLSX
+            </button>
+        </div>
+        
+        <!-- Footer -->
+        <div class="mt-8 pt-6 border-t border-gray-800">
+            <p class="text-xs text-gray-500">
+                <i class="fas fa-shield-alt mr-1"></i>100% Seguro • Dados Locais
+            </p>
+            <p class="text-xs text-gray-600 mt-1">
+                Última atualização: <span id="lastUpdate">-</span>
+            </p>
+        </div>
+    </div>
+    
+    <!-- Main Content -->
+    <div class="main-content">
+        <!-- Header -->
+        <div class="mb-6">
+            <h2 class="text-3xl font-bold text-white">Command Center</h2>
+            <p class="text-gray-400 mt-1">Auditoria e Fluxo de Caixa • Visão em Tempo Real</p>
+        </div>
+        
+        <!-- Loading Overlay -->
+        <div id="loadingOverlay" class="hidden fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
+            <div class="text-center">
+                <div class="spinner mx-auto mb-4"></div>
+                <p class="text-white font-semibold">Carregando dados...</p>
+            </div>
+        </div>
+        
+        <!-- KPI Cards -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+            <!-- Saldo Bancário -->
+            <div class="stat-card glass-effect rounded-lg p-6">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="text-gray-400 text-sm font-medium">Saldo Bancário</span>
+                    <i class="fas fa-wallet text-blue-500 text-xl"></i>
+                </div>
+                <div class="text-3xl font-bold text-white" id="kpiSaldo">R$ 0,00</div>
+                <div class="text-xs text-gray-500 mt-2">
+                    <span id="kpiSaldoVariacao">-</span>
+                </div>
+            </div>
+            
+            <!-- Contas a Pagar Hoje -->
+            <div class="stat-card glass-effect rounded-lg p-6">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="text-gray-400 text-sm font-medium">A Pagar Hoje</span>
+                    <i class="fas fa-calendar-day text-red-500 text-xl"></i>
+                </div>
+                <div class="text-3xl font-bold text-white" id="kpiPagarHoje">R$ 0,00</div>
+                <div class="text-xs text-gray-500 mt-2">
+                    <span id="kpiPagarHojeQtd">0 contas</span>
+                </div>
+            </div>
+            
+            <!-- Contas a Pagar na Semana -->
+            <div class="stat-card glass-effect rounded-lg p-6">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="text-gray-400 text-sm font-medium">A Pagar (7 dias)</span>
+                    <i class="fas fa-calendar-week text-yellow-500 text-xl"></i>
+                </div>
+                <div class="text-3xl font-bold text-white" id="kpiPagarSemana">R$ 0,00</div>
+                <div class="text-xs text-gray-500 mt-2">
+                    <span id="kpiPagarSemanaQtd">0 contas</span>
+                </div>
+            </div>
+            
+            <!-- Projeção de Saldo -->
+            <div class="stat-card glass-effect rounded-lg p-6">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="text-gray-400 text-sm font-medium">Projeção Saldo</span>
+                    <i class="fas fa-chart-line text-green-500 text-xl"></i>
+                </div>
+                <div class="text-3xl font-bold text-white" id="kpiProjecao">R$ 0,00</div>
+                <div class="text-xs text-gray-500 mt-2">
+                    <span id="kpiProjecaoStatus">-</span>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Gráfico Central -->
+        <div class="glass-effect rounded-lg p-6 mb-6">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-xl font-bold text-white">
+                    <i class="fas fa-chart-bar mr-2 text-blue-500"></i>
+                    Fluxo de Caixa - Previsto vs Realizado
+                </h3>
+                <div class="flex gap-2">
+                    <button id="btnChartWeek" class="px-3 py-1 bg-gray-800 hover:bg-gray-700 rounded text-sm transition">7 dias</button>
+                    <button id="btnChartMonth" class="px-3 py-1 bg-blue-600 rounded text-sm">30 dias</button>
+                </div>
+            </div>
+            <canvas id="cashFlowChart" height="80"></canvas>
+        </div>
+        
+        <!-- Tabela de Auditoria -->
+        <div class="glass-effect rounded-lg p-6">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-xl font-bold text-white">
+                    <i class="fas fa-list-alt mr-2 text-blue-500"></i>
+                    Auditoria Detalhada
+                </h3>
+                <div class="flex items-center gap-4">
+                    <input 
+                        type="text" 
+                        id="searchTable" 
+                        placeholder="Buscar..." 
+                        class="bg-gray-800 border border-gray-700 rounded-lg px-4 py-2 text-sm focus:border-blue-500 focus:outline-none"
+                    >
+                    <span class="text-sm text-gray-400">
+                        Total: <span id="tableTotal" class="font-bold text-white">0</span> registros
+                    </span>
+                </div>
+            </div>
+            
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm">
+                    <thead>
+                        <tr class="border-b border-gray-800">
+                            <th class="text-left py-3 px-4 font-semibold text-gray-400">Data</th>
+                            <th class="text-left py-3 px-4 font-semibold text-gray-400">Descrição</th>
+                            <th class="text-left py-3 px-4 font-semibold text-gray-400">Projeto</th>
+                            <th class="text-right py-3 px-4 font-semibold text-gray-400">Previsto</th>
+                            <th class="text-right py-3 px-4 font-semibold text-gray-400">Realizado</th>
+                            <th class="text-center py-3 px-4 font-semibold text-gray-400">Status</th>
+                            <th class="text-center py-3 px-4 font-semibold text-gray-400">Tipo</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tableBody">
+                        <tr>
+                            <td colspan="7" class="text-center py-8 text-gray-500">
+                                <i class="fas fa-inbox text-4xl mb-2"></i>
+                                <p>Nenhum dado disponível. Importe um arquivo OFX ou atualize os dados da API.</p>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            
+            <!-- Paginação -->
+            <div class="flex items-center justify-between mt-4 pt-4 border-t border-gray-800">
+                <div class="text-sm text-gray-400">
+                    Mostrando <span id="showingStart">0</span> a <span id="showingEnd">0</span> de <span id="showingTotal">0</span>
+                </div>
+                <div class="flex gap-2">
+                    <button id="btnPrevPage" class="px-3 py-1 bg-gray-800 hover:bg-gray-700 rounded text-sm transition disabled:opacity-50 disabled:cursor-not-allowed">
+                        <i class="fas fa-chevron-left"></i>
+                    </button>
+                    <span class="px-3 py-1 text-sm">Página <span id="currentPage">1</span></span>
+                    <button id="btnNextPage" class="px-3 py-1 bg-gray-800 hover:bg-gray-700 rounded text-sm transition disabled:opacity-50 disabled:cursor-not-allowed">
+                        <i class="fas fa-chevron-right"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Script Principal -->
+    <script src="app.js"></script>
+</body>
+</html>
