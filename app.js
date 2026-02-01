@@ -54,6 +54,33 @@ class ControladoriaApp {
             }
         });
         
+        // Upload CSV/XLSX Omie
+        const dropZoneOmie = document.getElementById('dropZoneOmie');
+        const omieFileInput = document.getElementById('omieFile');
+        
+        dropZoneOmie.addEventListener('click', () => omieFileInput.click());
+        dropZoneOmie.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZoneOmie.classList.add('dragging');
+        });
+        dropZoneOmie.addEventListener('dragleave', () => {
+            dropZoneOmie.classList.remove('dragging');
+        });
+        dropZoneOmie.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZoneOmie.classList.remove('dragging');
+            const file = e.dataTransfer.files[0];
+            if (file && (file.name.endsWith('.csv') || file.name.endsWith('.xlsx') || file.name.endsWith('.xls'))) {
+                this.processOmieFile(file);
+            }
+        });
+        omieFileInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                this.processOmieFile(file);
+            }
+        });
+        
         // Filtros - Agora com atualização automática do dashboard
         document.getElementById('filterPeriod').addEventListener('change', (e) => {
             const customRange = document.getElementById('customDateRange');
@@ -184,6 +211,308 @@ class ControladoriaApp {
         const month = dateStr.substring(4, 6);
         const day = dateStr.substring(6, 8);
         return new Date(year, month - 1, day);
+    }
+    
+    // ==========================================
+    // PROCESSAMENTO CSV/XLSX OMIE (CLIENT-SIDE)
+    // ==========================================
+    
+    async processOmieFile(file) {
+        this.showLoading(true);
+        const status = document.getElementById('omieStatus');
+        
+        try {
+            console.log('📂 Processando arquivo Omie:', file.name);
+            
+            let data;
+            
+            if (file.name.endsWith('.csv')) {
+                // Processar CSV
+                data = await this.parseCSV(file);
+            } else if (file.name.endsWith('.xlsx') || file.name.endsWith('.xls')) {
+                // Processar XLSX
+                data = await this.parseXLSX(file);
+            } else {
+                throw new Error('Formato de arquivo não suportado. Use CSV ou XLSX.');
+            }
+            
+            if (!data || data.length === 0) {
+                throw new Error('Nenhuma conta a pagar encontrada no arquivo');
+            }
+            
+            this.contasPagar = data;
+            status.innerHTML = `<i class="fas fa-check-circle text-green-500 mr-1"></i>${data.length} contas a pagar importadas`;
+            
+            console.log('✅ Contas a pagar Omie importadas:', this.contasPagar.length);
+            
+            // Realizar conciliação se houver dados OFX
+            if (this.ofxData.length > 0) {
+                this.realizarConciliacao();
+            } else {
+                // Se não houver OFX, mostrar apenas as contas a pagar na tabela
+                this.transacoesConciliadas = this.contasPagar.map(conta => ({
+                    data: conta.data,
+                    descricao: conta.descricao,
+                    valor: -conta.valor,
+                    tipo: conta.tipo,
+                    statusConciliacao: 'PENDENTE',
+                    contaOmie: conta,
+                    valorPrevisto: conta.valor,
+                    valorRealizado: 0,
+                    projeto: conta.projeto,
+                    origem: 'OMIE'
+                }));
+            }
+            
+            this.updateDashboard();
+            alert(`✅ ${data.length} contas a pagar importadas do Omie!`);
+            
+        } catch (error) {
+            console.error('❌ Erro ao processar arquivo Omie:', error);
+            status.innerHTML = `<i class="fas fa-exclamation-circle text-red-500 mr-1"></i>Erro: ${error.message}`;
+        } finally {
+            this.showLoading(false);
+        }
+    }
+    
+    async parseCSV(file) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            
+            reader.onload = (e) => {
+                try {
+                    const text = e.target.result;
+                    const lines = text.split('\n');
+                    
+                    if (lines.length < 2) {
+                        reject(new Error('Arquivo CSV vazio ou inválido'));
+                        return;
+                    }
+                    
+                    // Detectar separador (vírgula ou ponto-e-vírgula)
+                    const separator = lines[0].includes(';') ? ';' : ',';
+                    
+                    // Parsear header
+                    const headers = lines[0].split(separator).map(h => h.trim().replace(/"/g, ''));
+                    
+                    console.log('📋 Headers CSV:', headers);
+                    
+                    // Mapear colunas (detectar automaticamente)
+                    const columnMap = this.detectOmieColumns(headers);
+                    
+                    if (!columnMap.data || !columnMap.valor) {
+                        reject(new Error('Arquivo CSV não contém colunas obrigatórias (Data e Valor)'));
+                        return;
+                    }
+                    
+                    const contas = [];
+                    
+                    // Parsear linhas de dados
+                    for (let i = 1; i < lines.length; i++) {
+                        const line = lines[i].trim();
+                        if (!line) continue;
+                        
+                        const values = line.split(separator).map(v => v.trim().replace(/"/g, ''));
+                        
+                        const data = this.parseOmieDate(values[columnMap.data]);
+                        const valor = this.parseOmieValor(values[columnMap.valor]);
+                        const descricao = columnMap.descricao ? values[columnMap.descricao] : 'Sem descrição';
+                        const projeto = columnMap.projeto ? values[columnMap.projeto] : 'Sem projeto';
+                        const status = columnMap.status ? values[columnMap.status] : 'PENDENTE';
+                        
+                        if (data && valor) {
+                            contas.push({
+                                id: i,
+                                data: data,
+                                descricao: descricao || 'Sem descrição',
+                                valor: valor,
+                                projeto: projeto || 'Sem projeto',
+                                status: status || 'PENDENTE',
+                                tipo: 'saida',
+                                origem: 'OMIE_CSV'
+                            });
+                        }
+                    }
+                    
+                    console.log('✅ CSV parseado:', contas.length, 'registros');
+                    resolve(contas);
+                    
+                } catch (error) {
+                    reject(error);
+                }
+            };
+            
+            reader.onerror = () => reject(new Error('Erro ao ler arquivo CSV'));
+            reader.readAsText(file, 'UTF-8');
+        });
+    }
+    
+    async parseXLSX(file) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            
+            reader.onload = (e) => {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    
+                    // Pegar primeira planilha
+                    const sheetName = workbook.SheetNames[0];
+                    const worksheet = workbook.Sheets[sheetName];
+                    
+                    // Converter para JSON
+                    const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+                    
+                    if (jsonData.length < 2) {
+                        reject(new Error('Planilha vazia ou inválida'));
+                        return;
+                    }
+                    
+                    // Headers
+                    const headers = jsonData[0].map(h => String(h).trim());
+                    
+                    console.log('📋 Headers XLSX:', headers);
+                    
+                    // Mapear colunas
+                    const columnMap = this.detectOmieColumns(headers);
+                    
+                    if (!columnMap.data || !columnMap.valor) {
+                        reject(new Error('Planilha não contém colunas obrigatórias (Data e Valor)'));
+                        return;
+                    }
+                    
+                    const contas = [];
+                    
+                    // Parsear linhas
+                    for (let i = 1; i < jsonData.length; i++) {
+                        const row = jsonData[i];
+                        if (!row || row.length === 0) continue;
+                        
+                        const data = this.parseOmieDate(row[columnMap.data]);
+                        const valor = this.parseOmieValor(row[columnMap.valor]);
+                        const descricao = columnMap.descricao ? row[columnMap.descricao] : 'Sem descrição';
+                        const projeto = columnMap.projeto ? row[columnMap.projeto] : 'Sem projeto';
+                        const status = columnMap.status ? row[columnMap.status] : 'PENDENTE';
+                        
+                        if (data && valor) {
+                            contas.push({
+                                id: i,
+                                data: data,
+                                descricao: descricao || 'Sem descrição',
+                                valor: valor,
+                                projeto: projeto || 'Sem projeto',
+                                status: status || 'PENDENTE',
+                                tipo: 'saida',
+                                origem: 'OMIE_XLSX'
+                            });
+                        }
+                    }
+                    
+                    console.log('✅ XLSX parseado:', contas.length, 'registros');
+                    resolve(contas);
+                    
+                } catch (error) {
+                    reject(error);
+                }
+            };
+            
+            reader.onerror = () => reject(new Error('Erro ao ler arquivo XLSX'));
+            reader.readAsArrayBuffer(file);
+        });
+    }
+    
+    detectOmieColumns(headers) {
+        const map = {};
+        
+        headers.forEach((header, index) => {
+            const h = header.toLowerCase();
+            
+            // Data de vencimento
+            if (h.includes('vencimento') || h.includes('data') || h.includes('dt')) {
+                map.data = index;
+            }
+            
+            // Valor
+            if (h.includes('valor') || h.includes('total') || h.includes('vl')) {
+                map.valor = index;
+            }
+            
+            // Descrição
+            if (h.includes('descri') || h.includes('observ') || h.includes('historico') || h.includes('titulo')) {
+                map.descricao = index;
+            }
+            
+            // Projeto
+            if (h.includes('projeto') || h.includes('centro') || h.includes('custo') || h.includes('departamento')) {
+                map.projeto = index;
+            }
+            
+            // Status
+            if (h.includes('status') || h.includes('situacao')) {
+                map.status = index;
+            }
+        });
+        
+        console.log('🗺️ Mapeamento de colunas:', map);
+        return map;
+    }
+    
+    parseOmieDate(value) {
+        if (!value) return null;
+        
+        const str = String(value).trim();
+        
+        // Formato DD/MM/YYYY ou DD/MM/YY
+        if (str.includes('/')) {
+            const parts = str.split('/');
+            if (parts.length === 3) {
+                const day = parseInt(parts[0]);
+                const month = parseInt(parts[1]);
+                let year = parseInt(parts[2]);
+                
+                // Se ano tem 2 dígitos, converter para 4
+                if (year < 100) {
+                    year += 2000;
+                }
+                
+                return new Date(year, month - 1, day);
+            }
+        }
+        
+        // Formato YYYY-MM-DD
+        if (str.includes('-')) {
+            return new Date(str);
+        }
+        
+        // Formato Excel serial date
+        if (!isNaN(value)) {
+            const excelEpoch = new Date(1899, 11, 30);
+            return new Date(excelEpoch.getTime() + value * 86400000);
+        }
+        
+        return null;
+    }
+    
+    parseOmieValor(value) {
+        if (!value) return 0;
+        
+        // Remover símbolo de moeda e espaços
+        let str = String(value).trim()
+            .replace('R$', '')
+            .replace('$', '')
+            .trim();
+        
+        // Substituir vírgula por ponto (formato brasileiro)
+        // Mas só se tiver um único separador
+        if (str.includes(',') && !str.includes('.')) {
+            str = str.replace(',', '.');
+        } else if (str.includes('.') && str.includes(',')) {
+            // Formato: 1.234,56 -> 1234.56
+            str = str.replace(/\./g, '').replace(',', '.');
+        }
+        
+        const valor = parseFloat(str);
+        return isNaN(valor) ? 0 : Math.abs(valor);
     }
     
     // ==========================================
