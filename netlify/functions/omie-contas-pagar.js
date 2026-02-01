@@ -3,7 +3,7 @@ const axios = require('axios');
 async function buscarFornecedor(appKey, appSecret, codigoFornecedor) {
   try {
     const response = await axios.post(
-      'https://app.omie.com.br/api/v1/geral/clientes/', // ✅ ENDPOINT CORRETO
+      'https://app.omie.com.br/api/v1/geral/clientes/',
       {
         call: 'ConsultarCliente',
         app_key: appKey,
@@ -151,23 +151,22 @@ exports.handler = async (event, context) => {
 
     console.log(`📦 ${todasContasFiltradas.length} contas encontradas`);
 
-    // BUSCAR NOMES (com delay para evitar rate limit)
+    // BUSCAR TODOS OS FORNECEDORES E PROJETOS ÚNICOS (SEM LIMITE)
     const fornecedoresMap = new Map();
     const projetosMap = new Map();
 
-    const fornecedoresUnicos = [...new Set(todasContasFiltradas.map(c => c.codigo_cliente_fornecedor))].slice(0, 20);
-    const projetosUnicos = [...new Set(todasContasFiltradas.map(c => c.codigo_projeto).filter(Boolean))].slice(0, 10);
+    const fornecedoresUnicos = [...new Set(todasContasFiltradas.map(c => c.codigo_cliente_fornecedor))]; // ✅ SEM .slice()
+    const projetosUnicos = [...new Set(todasContasFiltradas.map(c => c.codigo_projeto).filter(Boolean))]; // ✅ SEM .slice()
 
     console.log(`🔍 Buscando ${fornecedoresUnicos.length} fornecedores e ${projetosUnicos.length} projetos...`);
 
-    // Buscar fornecedores sequencialmente (evitar rate limit)
+    // Buscar fornecedores sequencialmente (com delay para evitar rate limit)
     for (const cod of fornecedoresUnicos) {
       const nome = await buscarFornecedor(process.env.OMIE_APP_KEY, process.env.OMIE_APP_SECRET, cod);
       if (nome) {
         fornecedoresMap.set(cod, nome);
-        console.log(`  ✅ Fornecedor ${cod}: ${nome}`);
       }
-      await new Promise(resolve => setTimeout(resolve, 100)); // Delay 100ms
+      await new Promise(resolve => setTimeout(resolve, 50)); // Delay 50ms (reduzido para ser mais rápido)
     }
 
     // Buscar projetos sequencialmente
@@ -176,7 +175,7 @@ exports.handler = async (event, context) => {
       if (nome) {
         projetosMap.set(cod, nome);
       }
-      await new Promise(resolve => setTimeout(resolve, 100)); // Delay 100ms
+      await new Promise(resolve => setTimeout(resolve, 50)); // Delay 50ms
     }
 
     console.log(`📊 Fornecedores: ${fornecedoresMap.size}/${fornecedoresUnicos.length}`);
