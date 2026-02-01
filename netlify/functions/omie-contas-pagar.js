@@ -1,5 +1,62 @@
 const axios = require('axios');
 
+async function consultarDetalhes(appKey, appSecret, codigoLancamento) {
+  try {
+    const response = await axios.post(
+      'https://app.omie.com.br/api/v1/financas/contapagar/',
+      {
+        call: 'ConsultarContaPagar',
+        app_key: appKey,
+        app_secret: appSecret,
+        param: [{ codigo_lancamento_omie: codigoLancamento }]
+      },
+      { timeout: 5000 }
+    );
+
+    return response.data;
+  } catch {
+    return null;
+  }
+}
+
+async function buscarFornecedor(appKey, appSecret, codigoFornecedor) {
+  try {
+    const response = await axios.post(
+      'https://app.omie.com.br/api/v1/geral/clientesfornecedores/',
+      {
+        call: 'ConsultarClienteFornecedor',
+        app_key: appKey,
+        app_secret: appSecret,
+        param: [{ codigo_cliente_fornecedor_omie: codigoFornecedor }]
+      },
+      { timeout: 5000 }
+    );
+
+    return response.data.nome_fantasia || response.data.razao_social || null;
+  } catch {
+    return null;
+  }
+}
+
+async function buscarProjeto(appKey, appSecret, codigoProjeto) {
+  try {
+    const response = await axios.post(
+      'https://app.omie.com.br/api/v1/geral/projetos/',
+      {
+        call: 'ConsultarProjeto',
+        app_key: appKey,
+        app_secret: appSecret,
+        param: [{ codigo: codigoProjeto }]
+      },
+      { timeout: 5000 }
+    );
+
+    return response.data.nome || null;
+  } catch {
+    return null;
+  }
+}
+
 exports.handler = async (event, context) => {
   const headers = {
     'Access-Control-Allow-Origin': '*',
@@ -43,13 +100,14 @@ exports.handler = async (event, context) => {
     const dataFim = new Date(a2, m2 - 1, d2);
     const anoAlvo = parseInt(a1);
 
-    console.log(`🎯 Buscando ${dataInicial} a ${dataFinal} (ano ${anoAlvo})`);
+    console.log(`🎯 Buscando ${dataInicial} a ${dataFinal}`);
 
     let todasContasFiltradas = [];
     let paginaAtual = 1;
     const MAX_PAGINAS = 15;
     let passou = false;
 
+    // PASSO 1: BUSCAR CONTAS
     while (paginaAtual <= MAX_PAGINAS && !passou) {
       const omieRequest = {
         call: 'ListarContasPagar',
@@ -68,7 +126,7 @@ exports.handler = async (event, context) => {
       const response = await axios.post(
         'https://app.omie.com.br/api/v1/financas/contapagar/',
         omieRequest,
-        { timeout: 20000, headers: { 'Content-Type': 'application/json' } }
+        { timeout: 20000 }
       );
 
       if (response.data.faultstring) {
@@ -78,21 +136,13 @@ exports.handler = async (event, context) => {
       const contas = response.data.conta_pagar_cadastro || [];
       if (contas.length === 0) break;
 
-      // DEBUG: LOGAR CAMPOS DISPONÍVEIS
-      if (paginaAtual === 1 && contas.length > 0) {
-        console.log('🔍 CAMPOS DISPONÍVEIS:', Object.keys(contas[0]).join(', '));
-      }
-
       const primeira = contas[0]?.data_vencimento;
       const ultima = contas[contas.length - 1]?.data_vencimento;
       
       if (primeira && ultima) {
         const [,,aPri] = primeira.split('/');
         const [,,aUlt] = ultima.split('/');
-        const anoPri = parseInt(aPri);
         const anoUlt = parseInt(aUlt);
-
-        console.log(`📄 P${paginaAtual}: ${primeira} → ${ultima}`);
 
         const filtradas = contas.filter(c => {
           if (!c.data_vencimento) return false;
@@ -103,7 +153,6 @@ exports.handler = async (event, context) => {
 
         if (filtradas.length > 0) {
           todasContasFiltradas.push(...filtradas);
-          console.log(`   ✅ ${filtradas.length} contas no período`);
         }
 
         if (anoUlt < anoAlvo) {
@@ -118,7 +167,42 @@ exports.handler = async (event, context) => {
       }
     }
 
-    console.log(`📊 FINAL: ${todasContasFiltradas.length} contas`);
+    console.log(`📦 ${todasContasFiltradas.length} contas encontradas`);
+
+    // PASSO 2: BUSCAR NOMES (máximo 30 para evitar timeout)
+    const fornecedoresMap = new Map();
+    const projetosMap = new Map();
+
+    const fornecedoresUnicos = [...new Set(todasContasFiltradas.map(c => c.codigo_cliente_fornecedor))].slice(0, 30);
+    const projetosUnicos = [...new Set(todasContasFiltradas.map(c => c.codigo_projeto).filter(Boolean))].slice(0, 15);
+
+    console.log(`🔍 Buscando ${fornecedoresUnicos.length} fornecedores e ${projetosUnicos.length} projetos...`);
+
+    // Buscar em paralelo
+    await Promise.all([
+      ...fornecedoresUnicos.map(async cod => {
+        const nome = await buscarFornecedor(process.env.OMIE_APP_KEY, process.env.OMIE_APP_SECRET, cod);
+        if (nome) fornecedoresMap.set(cod, nome);
+      }),
+      ...projetosUnicos.map(async cod => {
+        const nome = await buscarProjeto(process.env.OMIE_APP_KEY, process.env.OMIE_APP_SECRET, cod);
+        if (nome) projetosMap.set(cod, nome);
+      })
+    ]);
+
+    // PASSO 3: ENRIQUECER CONTAS
+    const contasEnriquecidas = todasContasFiltradas.map(conta => {
+      const nomeFornecedor = fornecedoresMap.get(conta.codigo_cliente_fornecedor);
+      const nomeProjeto = projetosMap.get(conta.codigo_projeto);
+
+      return {
+        ...conta,
+        nome_fornecedor: nomeFornecedor || conta.observacao || 'Sem fornecedor',
+        nome_projeto: nomeProjeto || 'Sem projeto'
+      };
+    });
+
+    console.log(`✅ ${contasEnriquecidas.length} contas enriquecidas`);
 
     return {
       statusCode: 200,
@@ -126,8 +210,8 @@ exports.handler = async (event, context) => {
       body: JSON.stringify({
         success: true,
         data: {
-          registros: todasContasFiltradas.length,
-          conta_pagar_cadastro: todasContasFiltradas
+          registros: contasEnriquecidas.length,
+          conta_pagar_cadastro: contasEnriquecidas
         }
       })
     };
