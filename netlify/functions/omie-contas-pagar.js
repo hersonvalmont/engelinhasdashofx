@@ -37,7 +37,6 @@ exports.handler = async (event, context) => {
       };
     }
 
-    // Converter datas do filtro
     const [d1, m1, a1] = dataInicial.split('/');
     const [d2, m2, a2] = dataFinal.split('/');
     const dataIni = new Date(a1, m1 - 1, d1);
@@ -48,10 +47,9 @@ exports.handler = async (event, context) => {
 
     let todasContasFiltradas = [];
     let paginaAtual = 1;
-    const MAX_PAGINAS = 15; // Limite por segurança (7500 registros)
+    const MAX_PAGINAS = 15;
     let passou = false;
 
-    // BUSCAR PÁGINAS ATÉ ENCONTRAR E PASSAR DO ANO ALVO
     while (paginaAtual <= MAX_PAGINAS && !passou) {
       const omieRequest = {
         call: 'ListarContasPagar',
@@ -62,7 +60,7 @@ exports.handler = async (event, context) => {
           registros_por_pagina: 500,
           apenas_importado_api: 'N',
           ordenar_por: 'DATA_VENCIMENTO',
-          ordem_descrescente: 'S', // 2030 → 2026 → 2020
+          ordem_descrescente: 'S',
           exibir_obs: 'S'
         }]
       };
@@ -80,7 +78,6 @@ exports.handler = async (event, context) => {
       const contas = response.data.conta_pagar_cadastro || [];
       if (contas.length === 0) break;
 
-      // Analisar datas da página
       const primeira = contas[0]?.data_vencimento;
       const ultima = contas[contas.length - 1]?.data_vencimento;
       
@@ -92,7 +89,11 @@ exports.handler = async (event, context) => {
 
         console.log(`📄 P${paginaAtual}: ${primeira} → ${ultima} (anos ${anoPri}-${anoUlt})`);
 
-        // Filtrar contas desta página
+        // DEBUG: Logar estrutura da primeira conta
+        if (paginaAtual === 1 && contas.length > 0) {
+          console.log('🔍 ESTRUTURA DA PRIMEIRA CONTA:', JSON.stringify(contas[0], null, 2));
+        }
+
         const filtradas = contas.filter(c => {
           if (!c.data_vencimento) return false;
           const [d, m, a] = c.data_vencimento.split('/');
@@ -105,7 +106,6 @@ exports.handler = async (event, context) => {
           console.log(`   ✅ ${filtradas.length} contas no período`);
         }
 
-        // PARAR se já passou do ano alvo (chegou em anos anteriores)
         if (anoUlt < anoAlvo) {
           console.log(`   🛑 Passou do ano ${anoAlvo}, encerrando busca`);
           passou = true;
@@ -114,7 +114,6 @@ exports.handler = async (event, context) => {
 
       paginaAtual++;
 
-      // Proteção: se achou registros e já buscou 5+ páginas, parar
       if (todasContasFiltradas.length > 0 && paginaAtual > 5) {
         console.log('   ⚠️  Limite de páginas atingido');
         break;
