@@ -12,6 +12,7 @@ class ControladoriaApp {
         this.currentPage = 1;
         this.itemsPerPage = 20;
         this.chart = null;
+        this.saldoBancario = 0; // Saldo real do OFX (BALAMT)
         
         this.init();
     }
@@ -53,7 +54,7 @@ class ControladoriaApp {
             }
         });
         
-        // Filtros
+        // Filtros - Agora com atualização automática do dashboard
         document.getElementById('filterPeriod').addEventListener('change', (e) => {
             const customRange = document.getElementById('customDateRange');
             if (e.target.value === 'custom') {
@@ -61,14 +62,14 @@ class ControladoriaApp {
             } else {
                 customRange.classList.add('hidden');
             }
-            this.applyFilters();
+            this.updateDashboard(); // Atualização automática
         });
         
-        document.getElementById('filterProject').addEventListener('change', () => this.applyFilters());
-        document.getElementById('filterStatus').addEventListener('change', () => this.applyFilters());
-        document.getElementById('filterType').addEventListener('change', () => this.applyFilters());
-        document.getElementById('dateStart').addEventListener('change', () => this.applyFilters());
-        document.getElementById('dateEnd').addEventListener('change', () => this.applyFilters());
+        document.getElementById('filterProject').addEventListener('change', () => this.updateDashboard());
+        document.getElementById('filterStatus').addEventListener('change', () => this.updateDashboard());
+        document.getElementById('filterType').addEventListener('change', () => this.updateDashboard());
+        document.getElementById('dateStart').addEventListener('change', () => this.updateDashboard());
+        document.getElementById('dateEnd').addEventListener('change', () => this.updateDashboard());
         
         // Busca
         document.getElementById('searchTable').addEventListener('input', () => this.applyFilters());
@@ -135,6 +136,13 @@ class ControladoriaApp {
     parseOFXManual(text) {
         const transactions = [];
         
+        // Extrair saldo bancário real (BALAMT)
+        const balAmtMatch = text.match(/<BALAMT>([^<]+)/);
+        if (balAmtMatch) {
+            this.saldoBancario = parseFloat(balAmtMatch[1]);
+            console.log('✅ Saldo bancário OFX:', this.saldoBancario);
+        }
+        
         // Extrair transações (STMTTRN)
         const stmtRegex = /<STMTTRN>([\s\S]*?)<\/STMTTRN>/g;
         let match;
@@ -189,7 +197,7 @@ class ControladoriaApp {
             const { dataInicial, dataFinal } = this.getDateRange();
             
             // Buscar contas a pagar
-            const contasPagarResponse = await axios.post('/api/omie-contas-pagar', {
+            const contasPagarResponse = await axios.post('/.netlify/functions/omie-contas-pagar', {
                 dataInicial: this.formatDateAPI(dataInicial),
                 dataFinal: this.formatDateAPI(dataFinal),
                 page: 1,
@@ -325,8 +333,8 @@ class ControladoriaApp {
         const weekFromNow = new Date(today);
         weekFromNow.setDate(weekFromNow.getDate() + 7);
         
-        // Saldo bancário (soma das transações OFX)
-        const saldoBancario = this.ofxData.reduce((sum, t) => sum + t.valor, 0);
+        // Saldo bancário (tag BALAMT do OFX)
+        const saldoBancario = this.saldoBancario;
         
         // Contas a pagar hoje
         const contasHoje = this.contasPagar.filter(c => {
@@ -360,7 +368,20 @@ class ControladoriaApp {
     updateKPIs() {
         const kpis = this.calculateKPIs();
         
-        document.getElementById('kpiSaldo').textContent = this.formatCurrency(kpis.saldoBancario);
+        // Atualizar saldo com cor dinâmica
+        const saldoElement = document.getElementById('kpiSaldo');
+        saldoElement.textContent = this.formatCurrency(kpis.saldoBancario);
+        
+        // Aplicar classe CSS de cor baseada no saldo
+        saldoElement.classList.remove('text-red-500', 'text-green-500', 'text-white');
+        if (kpis.saldoBancario < 0) {
+            saldoElement.classList.add('text-red-500');
+        } else if (kpis.saldoBancario > 0) {
+            saldoElement.classList.add('text-green-500');
+        } else {
+            saldoElement.classList.add('text-white');
+        }
+        
         document.getElementById('kpiSaldoVariacao').innerHTML = 
             kpis.saldoBancario >= 0 
                 ? '<i class="fas fa-arrow-up text-green-500 mr-1"></i>Positivo'
@@ -590,6 +611,14 @@ class ControladoriaApp {
         this.updateTable();
     }
     
+    // Atualizar dashboard completo (KPIs + Gráfico + Tabela)
+    updateDashboard() {
+        this.updateKPIs();
+        this.updateChart(30);
+        this.updateProjectFilter();
+        this.updateTable();
+    }
+    
     getFilteredData() {
         let data = [...this.transacoesConciliadas];
         
@@ -806,13 +835,6 @@ class ControladoriaApp {
     
     showError(message) {
         alert(message); // Em produção, usar um toast/notification mais elegante
-    }
-    
-    updateDashboard() {
-        this.updateKPIs();
-        this.updateChart(30);
-        this.updateProjectFilter();
-        this.updateTable();
     }
     
     updateLastUpdateTime() {
