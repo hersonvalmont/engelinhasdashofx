@@ -13,7 +13,7 @@ exports.handler = async (event, context) => {
   }
 
   try {
-    const { dataInicial, dataFinal } = JSON.parse(event.body || '{}');
+    const { dataInicial, dataFinal, page = 1, registrosPorPagina = 500 } = JSON.parse(event.body || '{}');
 
     if (!process.env.OMIE_APP_KEY || !process.env.OMIE_APP_SECRET) {
       return {
@@ -26,18 +26,18 @@ exports.handler = async (event, context) => {
       };
     }
 
-    console.log('📡 TESTE: Buscando SEM filtro de data');
+    console.log('📡 Buscando página', page, '(ordem decrescente)');
 
     const omieRequest = {
       call: 'ListarContasPagar',
       app_key: process.env.OMIE_APP_KEY,
       app_secret: process.env.OMIE_APP_SECRET,
       param: [{
-        pagina: 1,
-        registros_por_pagina: 50, // REDUZIDO para análise
+        pagina: page,
+        registros_por_pagina: registrosPorPagina,
         apenas_importado_api: 'N',
         ordenar_por: 'DATA_VENCIMENTO',
-        ordem_descrescente: 'S', // MUDADO: buscar mais recentes primeiro
+        ordem_descrescente: 'S', // ← MUDANÇA CRÍTICA
         exibir_obs: 'S'
       }]
     };
@@ -52,16 +52,33 @@ exports.handler = async (event, context) => {
       throw new Error(response.data.faultstring);
     }
 
-    const contas = response.data.conta_pagar_cadastro || [];
+    let contas = response.data.conta_pagar_cadastro || [];
+    const totalOriginal = contas.length;
 
-    // LOG DAS PRIMEIRAS 5 DATAS
-    console.log('📅 AMOSTRA DE DATAS (primeiras 5):');
-    contas.slice(0, 5).forEach((c, i) => {
-      console.log(`  ${i + 1}. Vencimento: ${c.data_vencimento} | Emissão: ${c.data_emissao} | Valor: ${c.valor_documento}`);
-    });
+    // LOG DAS 3 PRIMEIRAS DATAS PARA VALIDAÇÃO
+    if (contas.length > 0) {
+      console.log('📅 AMOSTRA (primeiras 3 datas):');
+      contas.slice(0, 3).forEach((c, i) => {
+        console.log(`  ${i + 1}. ${c.data_vencimento} - R$ ${c.valor_documento}`);
+      });
+    }
 
-    console.log(`📊 Total retornado: ${contas.length} de ${response.data.total_de_registros}`);
-    console.log(`📄 Total de páginas: ${response.data.total_de_paginas}`);
+    // FILTRAR POR DATA NO BACKEND
+    if (dataInicial && dataFinal && contas.length > 0) {
+      const [d1, m1, a1] = dataInicial.split('/');
+      const [d2, m2, a2] = dataFinal.split('/');
+      const dataIni = new Date(a1, m1 - 1, d1);
+      const dataFim = new Date(a2, m2 - 1, d2);
+
+      contas = contas.filter(c => {
+        if (!c.data_vencimento) return false;
+        const [d, m, a] = c.data_vencimento.split('/');
+        const dataVenc = new Date(a, m - 1, d);
+        return dataVenc >= dataIni && dataVenc <= dataFim;
+      });
+
+      console.log(`✅ Filtrado: ${contas.length} de ${totalOriginal} contas (${dataInicial} a ${dataFinal})`);
+    }
 
     return {
       statusCode: 200,
@@ -69,16 +86,14 @@ exports.handler = async (event, context) => {
       body: JSON.stringify({
         success: true,
         data: {
+          pagina: response.data.pagina,
+          total_de_paginas: response.data.total_de_paginas,
           registros: contas.length,
           total_de_registros: response.data.total_de_registros,
-          total_de_paginas: response.data.total_de_paginas,
-          amostra_datas: contas.slice(0, 5).map(c => ({
-            vencimento: c.data_vencimento,
-            emissao: c.data_emissao,
-            valor: c.valor_documento
-          })),
+          total_sem_filtro: totalOriginal,
           conta_pagar_cadastro: contas
-        }
+        },
+        timestamp: new Date().toISOString()
       })
     };
 
@@ -89,7 +104,8 @@ exports.handler = async (event, context) => {
       headers,
       body: JSON.stringify({
         success: false,
-        error: error.message
+        error: error.response?.data?.faultstring || error.message,
+        details: error.response?.data || null
       })
     };
   }
