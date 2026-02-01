@@ -596,19 +596,56 @@ class ControladoriaApp {
     }
 
     normalizeContasPagar(data) {
-    const contas = data.conta_pagar_cadastro || []; // ✅ CORRIGIDO
+    const contas = data.conta_pagar_cadastro || [];
     
-    return contas.map(conta => ({
-        id: conta.codigo_lancamento_omie,
-        data: this.parseAPIDate(conta.data_vencimento),
-        descricao: conta.nm_fantasia_fornecedor || conta.observacao || 'Sem fornecedor',
-        valor: parseFloat(conta.valor_documento) || 0,
-        projeto: conta.codigo_projeto || 'Sem projeto',
-        status: conta.status_titulo || 'PENDENTE',
-        tipo: 'saida',
-        origem: 'OMIE'
-    }));
-    }
+    console.log('🔍 DEBUG: Primeira conta da API:', contas[0]);
+    
+    return contas.map(conta => {
+        // DETECÇÃO INTELIGENTE DO NOME DO FORNECEDOR
+        let descricao = 'Sem descrição';
+        
+        // Tentar vários campos possíveis (em ordem de prioridade)
+        if (conta.razao_social) {
+            descricao = conta.razao_social;
+        } else if (conta.nome_fantasia) {
+            descricao = conta.nome_fantasia;
+        } else if (conta.fornecedor) {
+            descricao = conta.fornecedor;
+        } else if (conta.cliente) {
+            descricao = conta.cliente;
+        } else if (conta.observacao) {
+            descricao = conta.observacao;
+        }
+        
+        // DETECÇÃO INTELIGENTE DO PROJETO
+        let projeto = 'Sem projeto';
+        
+        if (conta.descricao_projeto) {
+            projeto = conta.descricao_projeto;
+        } else if (conta.nome_projeto) {
+            projeto = conta.nome_projeto;
+        } else if (conta.projeto) {
+            projeto = conta.projeto;
+        } else if (conta.codigo_projeto) {
+            projeto = `Projeto ${conta.codigo_projeto}`;
+        } else if (conta.centro_custo) {
+            projeto = conta.centro_custo;
+        } else if (conta.departamento) {
+            projeto = conta.departamento;
+        }
+        
+        return {
+            id: conta.codigo_lancamento_omie,
+            data: this.parseAPIDate(conta.data_vencimento),
+            descricao: descricao,
+            valor: parseFloat(conta.valor_documento) || 0,
+            projeto: projeto,
+            status: conta.status_titulo || 'PENDENTE',
+            tipo: 'saida',
+            origem: 'OMIE'
+        };
+    });
+}
 
     parseAPIDate(dateStr) {
     if (!dateStr) return new Date();
