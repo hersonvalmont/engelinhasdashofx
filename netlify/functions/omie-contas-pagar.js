@@ -2,32 +2,26 @@ const axios = require('axios');
 
 async function buscarFornecedor(appKey, appSecret, codigoFornecedor) {
   try {
-    console.log(`  🔍 Buscando fornecedor ${codigoFornecedor}...`);
-    
     const response = await axios.post(
-      'https://app.omie.com.br/api/v1/geral/clientesfornecedores/',
+      'https://app.omie.com.br/api/v1/geral/clientes/', // ✅ ENDPOINT CORRETO
       {
-        call: 'ConsultarClienteFornecedor',
+        call: 'ConsultarCliente',
         app_key: appKey,
         app_secret: appSecret,
-        param: [{ codigo_cliente_fornecedor_omie: codigoFornecedor }]
+        param: [{ codigo_cliente_omie: codigoFornecedor }]
       },
       { timeout: 5000 }
     );
 
     const nome = response.data.nome_fantasia || response.data.razao_social || null;
-    console.log(`  ✅ Fornecedor ${codigoFornecedor}: ${nome}`);
     return nome;
   } catch (err) {
-    console.log(`  ❌ Erro ao buscar fornecedor ${codigoFornecedor}: ${err.message}`);
     return null;
   }
 }
 
 async function buscarProjeto(appKey, appSecret, codigoProjeto) {
   try {
-    console.log(`  🔍 Buscando projeto ${codigoProjeto}...`);
-    
     const response = await axios.post(
       'https://app.omie.com.br/api/v1/geral/projetos/',
       {
@@ -40,10 +34,8 @@ async function buscarProjeto(appKey, appSecret, codigoProjeto) {
     );
 
     const nome = response.data.nome || null;
-    console.log(`  ✅ Projeto ${codigoProjeto}: ${nome}`);
     return nome;
   } catch (err) {
-    console.log(`  ❌ Erro ao buscar projeto ${codigoProjeto}: ${err.message}`);
     return null;
   }
 }
@@ -159,29 +151,36 @@ exports.handler = async (event, context) => {
 
     console.log(`📦 ${todasContasFiltradas.length} contas encontradas`);
 
-    // BUSCAR NOMES
+    // BUSCAR NOMES (com delay para evitar rate limit)
     const fornecedoresMap = new Map();
     const projetosMap = new Map();
 
-    const fornecedoresUnicos = [...new Set(todasContasFiltradas.map(c => c.codigo_cliente_fornecedor))].slice(0, 30);
-    const projetosUnicos = [...new Set(todasContasFiltradas.map(c => c.codigo_projeto).filter(Boolean))].slice(0, 15);
+    const fornecedoresUnicos = [...new Set(todasContasFiltradas.map(c => c.codigo_cliente_fornecedor))].slice(0, 20);
+    const projetosUnicos = [...new Set(todasContasFiltradas.map(c => c.codigo_projeto).filter(Boolean))].slice(0, 10);
 
     console.log(`🔍 Buscando ${fornecedoresUnicos.length} fornecedores e ${projetosUnicos.length} projetos...`);
 
-    // Buscar em paralelo
-    await Promise.all([
-      ...fornecedoresUnicos.map(async cod => {
-        const nome = await buscarFornecedor(process.env.OMIE_APP_KEY, process.env.OMIE_APP_SECRET, cod);
-        if (nome) fornecedoresMap.set(cod, nome);
-      }),
-      ...projetosUnicos.map(async cod => {
-        const nome = await buscarProjeto(process.env.OMIE_APP_KEY, process.env.OMIE_APP_SECRET, cod);
-        if (nome) projetosMap.set(cod, nome);
-      })
-    ]);
+    // Buscar fornecedores sequencialmente (evitar rate limit)
+    for (const cod of fornecedoresUnicos) {
+      const nome = await buscarFornecedor(process.env.OMIE_APP_KEY, process.env.OMIE_APP_SECRET, cod);
+      if (nome) {
+        fornecedoresMap.set(cod, nome);
+        console.log(`  ✅ Fornecedor ${cod}: ${nome}`);
+      }
+      await new Promise(resolve => setTimeout(resolve, 100)); // Delay 100ms
+    }
 
-    console.log(`📊 Fornecedores encontrados: ${fornecedoresMap.size}/${fornecedoresUnicos.length}`);
-    console.log(`📊 Projetos encontrados: ${projetosMap.size}/${projetosUnicos.length}`);
+    // Buscar projetos sequencialmente
+    for (const cod of projetosUnicos) {
+      const nome = await buscarProjeto(process.env.OMIE_APP_KEY, process.env.OMIE_APP_SECRET, cod);
+      if (nome) {
+        projetosMap.set(cod, nome);
+      }
+      await new Promise(resolve => setTimeout(resolve, 100)); // Delay 100ms
+    }
+
+    console.log(`📊 Fornecedores: ${fornecedoresMap.size}/${fornecedoresUnicos.length}`);
+    console.log(`📊 Projetos: ${projetosMap.size}/${projetosUnicos.length}`);
 
     // ENRIQUECER CONTAS
     const contasEnriquecidas = todasContasFiltradas.map(conta => {
