@@ -1,7 +1,6 @@
 [build]
   functions = "netlify/functions"
   publish = "."
-  # Alterado para apenas instalar as dependências (como o axios)
   command = "npm install"
 
 [[redirects]]
