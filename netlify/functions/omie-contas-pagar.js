@@ -78,6 +78,13 @@ exports.handler = async (event, context) => {
       const contas = response.data.conta_pagar_cadastro || [];
       if (contas.length === 0) break;
 
+      // DEBUG: LOGAR TODOS OS CAMPOS DA PRIMEIRA CONTA
+      if (paginaAtual === 1 && contas.length > 0) {
+        console.log('🔍 ========== ESTRUTURA COMPLETA DA CONTA ==========');
+        console.log(JSON.stringify(contas[0], null, 2));
+        console.log('🔍 ================================================');
+      }
+
       const primeira = contas[0]?.data_vencimento;
       const ultima = contas[contas.length - 1]?.data_vencimento;
       
@@ -87,12 +94,7 @@ exports.handler = async (event, context) => {
         const anoPri = parseInt(aPri);
         const anoUlt = parseInt(aUlt);
 
-        console.log(`📄 P${paginaAtual}: ${primeira} → ${ultima} (anos ${anoPri}-${anoUlt})`);
-
-        // DEBUG: Logar estrutura da primeira conta
-        if (paginaAtual === 1 && contas.length > 0) {
-          console.log('🔍 ESTRUTURA DA PRIMEIRA CONTA:', JSON.stringify(contas[0], null, 2));
-        }
+        console.log(`📄 P${paginaAtual}: ${primeira} → ${ultima}`);
 
         const filtradas = contas.filter(c => {
           if (!c.data_vencimento) return false;
@@ -107,7 +109,6 @@ exports.handler = async (event, context) => {
         }
 
         if (anoUlt < anoAlvo) {
-          console.log(`   🛑 Passou do ano ${anoAlvo}, encerrando busca`);
           passou = true;
         }
       }
@@ -115,12 +116,11 @@ exports.handler = async (event, context) => {
       paginaAtual++;
 
       if (todasContasFiltradas.length > 0 && paginaAtual > 5) {
-        console.log('   ⚠️  Limite de páginas atingido');
         break;
       }
     }
 
-    console.log(`📊 FINAL: ${todasContasFiltradas.length} contas (${paginaAtual - 1} páginas)`);
+    console.log(`📊 FINAL: ${todasContasFiltradas.length} contas`);
 
     return {
       statusCode: 200,
@@ -128,14 +128,9 @@ exports.handler = async (event, context) => {
       body: JSON.stringify({
         success: true,
         data: {
-          pagina: 1,
-          total_de_paginas: 1,
           registros: todasContasFiltradas.length,
-          total_de_registros: todasContasFiltradas.length,
-          paginas_consultadas: paginaAtual - 1,
           conta_pagar_cadastro: todasContasFiltradas
-        },
-        timestamp: new Date().toISOString()
+        }
       })
     };
 
