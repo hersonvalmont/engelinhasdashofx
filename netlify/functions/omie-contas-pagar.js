@@ -29,7 +29,20 @@ exports.handler = async (event, context) => {
       };
     }
 
-    // MONTAGEM DO REQUEST (Padrão Oficial Omie v1)
+    // Validar formato de datas (DD/MM/YYYY)
+    const dateRegex = /^\d{2}\/\d{2}\/\d{4}$/;
+    if (!dateRegex.test(dataInicial) || !dateRegex.test(dataFinal)) {
+      return {
+        statusCode: 400,
+        headers,
+        body: JSON.stringify({
+          success: false,
+          error: `Formato de data inválido. Recebido: ${dataInicial} e ${dataFinal}. Esperado: DD/MM/YYYY`
+        })
+      };
+    }
+
+    // MONTAGEM DO REQUEST (Estrutura oficial Omie - lcpListarRequest)
     const omieRequest = {
       call: 'ListarContasPagar',
       app_key: process.env.OMIE_APP_KEY,
@@ -38,14 +51,16 @@ exports.handler = async (event, context) => {
         pagina: page,
         registros_por_pagina: registrosPorPagina,
         apenas_importado_api: 'N',
-        // CORREÇÃO CIRÚRGICA: Tags aceitas pela estrutura lcpListarRequest
-        filtrar_por_data_venc_de: dataInicial, 
-        filtrar_por_data_venc_ate: dataFinal,
+        // CORREÇÃO: Tags corretas aceitas pela API
+        filtrar_apenas_por_data_de: 'VENCIMENTO',
+        filtrar_por_data_de: dataInicial, 
+        filtrar_por_data_ate: dataFinal,
         ordenar_por: 'DATA_VENCIMENTO'
       }]
     };
     
-    console.log(`📡 Processando Engelinhas: ${dataInicial} a ${dataFinal}`);
+    console.log('📡 Processando Engelinhas:', dataInicial, 'a', dataFinal);
+    console.log('📤 Payload enviado:', JSON.stringify(omieRequest, null, 2));
 
     const response = await axios.post(
       'https://app.omie.com.br/api/v1/financas/contapagar/',
@@ -53,9 +68,11 @@ exports.handler = async (event, context) => {
       { timeout: 30000 }
     );
     
+    console.log('📥 Resposta Omie:', JSON.stringify(response.data, null, 2));
+
     // O Omie às vezes retorna erro dentro de um status 200 (faultstring)
     if (response.data.faultstring) {
-        throw new Error(response.data.faultstring);
+      throw new Error(response.data.faultstring);
     }
 
     return {
@@ -70,6 +87,7 @@ exports.handler = async (event, context) => {
 
   } catch (error) {
     console.error('❌ Erro na Function:', error.message);
+    console.error('Stack:', error.stack);
     
     return {
       statusCode: 200, // Mantido 200 para que o dashboard mostre o erro amigavelmente
