@@ -706,7 +706,7 @@ class ControladoriaApp {
         const contasHoje = this.contasPagar.filter(c => {
             const dataVenc = new Date(c.data);
             dataVenc.setHours(0, 0, 0, 0);
-            return dataVenc.getTime() === today.getTime() && c.status !== 'PAGO';
+            return dataVenc.getTime() === today.getTime();
         });
         const totalPagarHoje = contasHoje.reduce((sum, c) => sum + c.valor, 0);
         
@@ -714,7 +714,7 @@ class ControladoriaApp {
         const contasSemana = this.contasPagar.filter(c => {
             const dataVenc = new Date(c.data);
             dataVenc.setHours(0, 0, 0, 0);
-            return dataVenc >= today && dataVenc <= weekFromNow && c.status !== 'PAGO';
+            return dataVenc >= today && dataVenc <= weekFromNow;
         });
         const totalPagarSemana = contasSemana.reduce((sum, c) => sum + c.valor, 0);
         
