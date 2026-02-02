@@ -152,31 +152,15 @@ class ControladoriaApp {
                 throw new Error('Nenhuma transação encontrada no arquivo OFX');
             }
             
-            // PROTEÇÃO CONTRA DUPLICAÇÃO
-            const transacoesExistentes = new Set(
-                this.ofxData.map(t => t.id || `${t.data.getTime()}_${t.descricao}_${t.valor}`)
-            );
+            // Adicionar todas as transações do arquivo
+            this.ofxData = [...this.ofxData, ...ofxData];
             
-            const transacoesNovas = ofxData.filter(transacao => {
-                const chave = transacao.id || `${transacao.data.getTime()}_${transacao.descricao}_${transacao.valor}`;
-                return !transacoesExistentes.has(chave);
-            });
-            
-            const transacoesDuplicadas = ofxData.length - transacoesNovas.length;
-            
-            // Adicionar apenas transações novas
-            this.ofxData = [...this.ofxData, ...transacoesNovas];
-            
-            const mensagem = transacoesDuplicadas > 0 
-                ? `${transacoesNovas.length} novas transações importadas (${transacoesDuplicadas} duplicadas ignoradas)`
-                : `${transacoesNovas.length} transações importadas`;
+            const mensagem = `${ofxData.length} transações importadas`;
             
             status.innerHTML = `<i class="fas fa-check-circle text-green-500 mr-1"></i>${mensagem}`;
             
             console.log('✅ OFX processado:');
             console.log('  Total no arquivo:', ofxData.length);
-            console.log('  Novas importadas:', transacoesNovas.length);
-            console.log('  Duplicadas ignoradas:', transacoesDuplicadas);
             console.log('  Total no sistema:', this.ofxData.length);
             
             // Realizar conciliação automaticamente
@@ -275,31 +259,15 @@ class ControladoriaApp {
                 throw new Error('Nenhuma conta a pagar encontrada no arquivo');
             }
             
-            // PROTEÇÃO CONTRA DUPLICAÇÃO
-            const contasExistentes = new Set(
-                this.contasPagar.map(c => `${c.data.getTime()}_${c.descricao}_${c.valor}`)
-            );
+            // Adicionar todas as contas do arquivo
+            this.contasPagar = [...this.contasPagar, ...data];
             
-            const contasNovas = data.filter(conta => {
-                const chave = `${conta.data.getTime()}_${conta.descricao}_${conta.valor}`;
-                return !contasExistentes.has(chave);
-            });
-            
-            const contasDuplicadas = data.length - contasNovas.length;
-            
-            // Adicionar apenas contas novas
-            this.contasPagar = [...this.contasPagar, ...contasNovas];
-            
-            const mensagem = contasDuplicadas > 0 
-                ? `${contasNovas.length} novas contas importadas (${contasDuplicadas} duplicadas ignoradas)`
-                : `${contasNovas.length} contas a pagar importadas`;
+            const mensagem = `${data.length} contas a pagar importadas`;
             
             status.innerHTML = `<i class="fas fa-check-circle text-green-500 mr-1"></i>${mensagem}`;
             
             console.log('✅ Contas a pagar Omie:');
             console.log('  Total no arquivo:', data.length);
-            console.log('  Novas importadas:', contasNovas.length);
-            console.log('  Duplicadas ignoradas:', contasDuplicadas);
             console.log('  Total no sistema:', this.contasPagar.length);
             
             // Realizar conciliação se houver dados OFX
