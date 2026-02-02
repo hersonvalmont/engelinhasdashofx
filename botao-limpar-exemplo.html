@@ -1,0 +1,64 @@
+<!-- ============================================ -->
+<!-- BOTÃO LIMPAR TODOS OS DADOS - CÓDIGO HTML -->
+<!-- ============================================ -->
+
+<!-- OPÇÃO 1: onclick (RECOMENDADO - MAIS SIMPLES) -->
+<button onclick="limparTodosDados()" 
+        class="bg-red-500 hover:bg-red-600 text-white font-semibold px-6 py-3 rounded-lg shadow-lg transition-all duration-200 transform hover:scale-105 flex items-center gap-2">
+    <i class="fas fa-trash"></i>
+    Limpar Todos os Dados
+</button>
+
+<!-- OU -->
+
+<!-- OPÇÃO 2: ID do botão (JavaScript detecta automaticamente) -->
+<button id="btnClear" 
+        class="bg-red-500 hover:bg-red-600 text-white font-semibold px-6 py-3 rounded-lg shadow-lg transition-all duration-200 transform hover:scale-105 flex items-center gap-2">
+    <i class="fas fa-trash"></i>
+    Limpar Todos os Dados
+</button>
+
+<!-- OU -->
+
+<!-- OPÇÃO 3: data-action -->
+<button data-action="clear" 
+        class="bg-red-500 hover:bg-red-600 text-white font-semibold px-6 py-3 rounded-lg shadow-lg transition-all duration-200 transform hover:scale-105 flex items-center gap-2">
+    <i class="fas fa-trash"></i>
+    Limpar Todos os Dados
+</button>
+
+<!-- ============================================ -->
+<!-- EXEMPLO: Dentro de um grupo de botões -->
+<!-- ============================================ -->
+
+<div class="flex gap-3 justify-center mt-4">
+    <!-- Botão Exportar Excel -->
+    <button id="btnExport" 
+            class="bg-green-500 hover:bg-green-600 text-white font-semibold px-6 py-3 rounded-lg shadow-lg transition-all duration-200 transform hover:scale-105 flex items-center gap-2">
+        <i class="fas fa-file-excel"></i>
+        Exportar XLSX
+    </button>
+    
+    <!-- Botão Limpar Todos os Dados -->
+    <button onclick="limparTodosDados()" 
+            class="bg-red-500 hover:bg-red-600 text-white font-semibold px-6 py-3 rounded-lg shadow-lg transition-all duration-200 transform hover:scale-105 flex items-center gap-2">
+        <i class="fas fa-trash"></i>
+        Limpar Todos os Dados
+    </button>
+</div>
+
+<!-- ============================================ -->
+<!-- TESTE NO CONSOLE DO NAVEGADOR (F12) -->
+<!-- ============================================ -->
+
+<!-- 
+Após carregar a página, abra o console e digite:
+
+limparTodosDados()
+
+ou
+
+window.app.limparDados()
+
+Deve aparecer a mensagem de confirmação!
+-->
