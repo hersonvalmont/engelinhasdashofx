@@ -699,6 +699,11 @@ class ControladoriaApp {
         const weekFromNow = new Date(today);
         weekFromNow.setDate(weekFromNow.getDate() + 7);
         
+        // DEBUG: Log das contas carregadas
+        console.log('🔍 DEBUG calculateKPIs:');
+        console.log('Total de contas em this.contasPagar:', this.contasPagar.length);
+        console.log('Data de hoje:', today);
+        
         // Saldo bancário (tag BALAMT do OFX)
         const saldoBancario = this.saldoBancario;
         
@@ -708,7 +713,13 @@ class ControladoriaApp {
             dataVenc.setHours(0, 0, 0, 0);
             return dataVenc.getTime() === today.getTime();
         });
+        
+        // DEBUG: Log das contas filtradas
+        console.log('Contas que vencem hoje:', contasHoje.length);
+        console.log('Detalhes das contas hoje:', contasHoje);
+        
         const totalPagarHoje = contasHoje.reduce((sum, c) => sum + c.valor, 0);
+        console.log('Total a pagar hoje:', totalPagarHoje);
         
         // Contas a pagar na semana
         const contasSemana = this.contasPagar.filter(c => {
