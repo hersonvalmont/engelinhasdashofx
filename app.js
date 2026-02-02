@@ -1056,8 +1056,8 @@ class ControladoriaApp {
             );
         }
         
-        // Ordenar por data (mais recente primeiro)
-        data.sort((a, b) => new Date(b.data) - new Date(a.data));
+        // Ordenar por data (mais antiga primeiro)
+        data.sort((a, b) => new Date(a.data) - new Date(b.data));
         
         return data;
     }
