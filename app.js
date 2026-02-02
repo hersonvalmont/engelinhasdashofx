@@ -1367,40 +1367,18 @@ class ControladoriaApp {
         const previsto = [];
         const realizado = [];
         
-        // Pegar intervalo de datas baseado no filtro
+        // SEMPRE usar as datas do filtro selecionado
         const { dataInicial, dataFinal } = this.getDateRange();
         
-        console.log('📊 getChartData chamado:');
-        console.log('  - days:', days);
-        console.log('  - dataInicial:', dataInicial);
-        console.log('  - dataFinal:', dataFinal);
+        console.log('📊 getChartData:');
+        console.log('  dataInicial:', this.formatDateBR(dataInicial));
+        console.log('  dataFinal:', this.formatDateBR(dataFinal));
         
-        // Se for período personalizado, usar as datas do filtro
-        const periodo = document.getElementById('filterPeriod').value;
-        console.log('  - periodo:', periodo);
-        
-        let startDate, endDate;
-        
-        if (periodo === 'custom' || periodo === 'today' || periodo === 'yesterday') {
-            // Usar exatamente as datas do filtro
-            startDate = new Date(dataInicial);
-            endDate = new Date(dataFinal);
-            console.log('  → Usando datas do filtro');
-        } else {
-            // Para outros períodos (semana, mês), contar pra trás de hoje
-            const today = new Date();
-            today.setHours(0, 0, 0, 0);
-            endDate = new Date(today);
-            startDate = new Date(today);
-            startDate.setDate(today.getDate() - days + 1);
-            console.log('  → Contando pra trás de hoje');
-        }
+        const startDate = new Date(dataInicial);
+        const endDate = new Date(dataFinal);
         
         startDate.setHours(0, 0, 0, 0);
         endDate.setHours(0, 0, 0, 0);
-        
-        console.log('  - startDate final:', this.formatDateBR(startDate));
-        console.log('  - endDate final:', this.formatDateBR(endDate));
         
         // Gerar labels e dados para cada dia do intervalo
         const currentDate = new Date(startDate);
@@ -1434,8 +1412,7 @@ class ControladoriaApp {
             currentDate.setDate(currentDate.getDate() + 1);
         }
         
-        console.log('  - Labels gerados:', labels);
-        console.log('  - Total de pontos:', labels.length);
+        console.log('  Labels:', labels);
         
         return { labels, previsto, realizado };
     }
