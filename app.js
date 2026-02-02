@@ -104,6 +104,7 @@ class ControladoriaApp {
         // Ações
         document.getElementById('btnRefresh').addEventListener('click', () => this.refreshData());
         document.getElementById('btnExport').addEventListener('click', () => this.exportToXLSX());
+        document.getElementById('btnEditSaldo').addEventListener('click', () => this.editarSaldo());
         
         // Paginação
         document.getElementById('btnPrevPage').addEventListener('click', () => this.changePage(-1));
@@ -163,13 +164,6 @@ class ControladoriaApp {
     parseOFXManual(text) {
         const transactions = [];
         
-        // Extrair saldo bancário real (BALAMT)
-        const balAmtMatch = text.match(/<BALAMT>([^<]+)/);
-        if (balAmtMatch) {
-            this.saldoBancario = parseFloat(balAmtMatch[1]);
-            console.log('✅ Saldo bancário OFX:', this.saldoBancario);
-        }
-        
         // Extrair transações (STMTTRN)
         const stmtRegex = /<STMTTRN>([\s\S]*?)<\/STMTTRN>/g;
         let match;
@@ -194,6 +188,22 @@ class ControladoriaApp {
                     origem: 'OFX'
                 });
             }
+        }
+        
+        // AVISO: BALAMT do banco pode estar incorreto
+        // Vamos usar zero e deixar o usuário ver apenas as movimentações
+        const balAmtMatch = text.match(/<BALAMT>([^<]+)/);
+        const balAmtFromOFX = balAmtMatch ? parseFloat(balAmtMatch[1]) : 0;
+        
+        // Se BALAMT for muito diferente do esperado (> 100k), provavelmente está errado
+        // Nesse caso, usar zero e avisar
+        if (balAmtFromOFX > 100000) {
+            this.saldoBancario = 0;
+            console.warn('⚠️ BALAMT do OFX parece incorreto (R$ ' + balAmtFromOFX.toFixed(2) + ')');
+            console.log('📊 Usando saldo R$ 0,00 como base. Recomenda-se verificar saldo real no banco.');
+        } else {
+            this.saldoBancario = balAmtFromOFX;
+            console.log('✅ Saldo bancário OFX: R$ ' + this.saldoBancario.toFixed(2));
         }
         
         return transactions;
@@ -576,6 +586,33 @@ class ControladoriaApp {
             const percentual = parseFloat(`${inteiro}.${decimal}`);
             return `(${Math.round(percentual)}%)`;
         });
+    }
+    
+    // Editar saldo bancário manualmente
+    editarSaldo() {
+        const saldoAtual = this.saldoBancario;
+        const saldoFormatado = this.formatCurrency(saldoAtual);
+        
+        const novoSaldo = prompt(
+            `⚠️ ATENÇÃO: O saldo do OFX pode estar incorreto.\n\n` +
+            `Saldo atual: ${saldoFormatado}\n\n` +
+            `Digite o saldo correto (apenas números):`,
+            saldoAtual.toFixed(2).replace('.', ',')
+        );
+        
+        if (novoSaldo !== null) {
+            // Parse do valor digitado
+            const valorLimpo = novoSaldo.replace(/[^\d,.-]/g, '').replace(',', '.');
+            const novoSaldoNumero = parseFloat(valorLimpo);
+            
+            if (!isNaN(novoSaldoNumero)) {
+                this.saldoBancario = novoSaldoNumero;
+                this.updateKPIs();
+                console.log('✅ Saldo atualizado manualmente:', this.formatCurrency(novoSaldoNumero));
+            } else {
+                alert('❌ Valor inválido! Use apenas números.');
+            }
+        }
     }
     
     // ==========================================
