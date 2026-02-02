@@ -233,6 +233,7 @@
                     <option value="">Todos</option>
                     <option value="conciliado">Conciliado</option>
                     <option value="nao_provisionado">Não Provisionado</option>
+                    <option value="atrasado">Atrasado</option>
                     <option value="pendente">Pendente</option>
                 </select>
             </div>
@@ -386,12 +387,17 @@
                     Auditoria Detalhada
                 </h3>
                 <div class="flex items-center gap-4">
-                    <input 
-                        type="text" 
-                        id="searchTable" 
-                        placeholder="Buscar..." 
-                        class="bg-gray-800 border border-gray-700 rounded-lg px-4 py-2 text-sm focus:border-blue-500 focus:outline-none"
-                    >
+                    <div class="flex items-center gap-2">
+                        <input 
+                            type="text" 
+                            id="searchTable" 
+                            placeholder="Buscar... (ex: irpj, csll)" 
+                            class="bg-gray-800 border border-gray-700 rounded-lg px-4 py-2 text-sm focus:border-blue-500 focus:outline-none w-64"
+                        >
+                        <span class="text-gray-500 text-xs cursor-help" title="Separe múltiplos termos com vírgula ou espaço. Ex: 'irpj, csll' ou 'irpj csll'">
+                            <i class="fas fa-info-circle"></i>
+                        </span>
+                    </div>
                     <span class="text-sm text-gray-400">
                         Total: <span id="tableTotal" class="font-bold text-white">0</span> registros
                     </span>
