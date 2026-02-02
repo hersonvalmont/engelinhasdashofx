@@ -1173,14 +1173,14 @@ class ControladoriaApp {
             return;
         }
         
-        // Preparar dados para exportação
+        // Preparar dados para exportação COM VALORES NUMÉRICOS
         const exportData = data.map(item => ({
             'Data': this.formatDateBR(item.data),
             'Descrição': item.descricao,
             'Projeto': item.projeto,
             'Categoria': item.categoria || 'Sem categoria',
-            'Previsto': this.formatCurrency(item.valorPrevisto),
-            'Realizado': this.formatCurrency(item.valorRealizado),
+            'Previsto': item.valorPrevisto, // NÚMERO PURO
+            'Realizado': item.valorRealizado, // NÚMERO PURO
             'Status': item.statusConciliacao,
             'Tipo': item.tipo === 'entrada' ? 'Entrada' : 'Saída'
         }));
@@ -1188,6 +1188,23 @@ class ControladoriaApp {
         // Criar workbook e worksheet
         const wb = XLSX.utils.book_new();
         const ws = XLSX.utils.json_to_sheet(exportData);
+        
+        // Formatar colunas de valor como moeda brasileira
+        const range = XLSX.utils.decode_range(ws['!ref']);
+        for (let row = 1; row <= range.e.r; row++) {
+            // Coluna E (Previsto) e F (Realizado)
+            const cellPrevisto = ws[XLSX.utils.encode_cell({r: row, c: 4})];
+            const cellRealizado = ws[XLSX.utils.encode_cell({r: row, c: 5})];
+            
+            if (cellPrevisto) {
+                cellPrevisto.z = 'R$ #,##0.00'; // Formato moeda brasileira
+                cellPrevisto.t = 'n'; // Tipo numérico
+            }
+            if (cellRealizado) {
+                cellRealizado.z = 'R$ #,##0.00';
+                cellRealizado.t = 'n';
+            }
+        }
         
         // Ajustar largura das colunas
         ws['!cols'] = [
