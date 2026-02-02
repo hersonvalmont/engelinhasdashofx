@@ -93,6 +93,7 @@ class ControladoriaApp {
         });
         
         document.getElementById('filterProject').addEventListener('change', () => this.updateDashboard());
+        document.getElementById('filterCategoria').addEventListener('change', () => this.updateDashboard());
         document.getElementById('filterStatus').addEventListener('change', () => this.updateDashboard());
         document.getElementById('filterType').addEventListener('change', () => this.updateDashboard());
         document.getElementById('dateStart').addEventListener('change', () => this.updateDashboard());
@@ -105,6 +106,7 @@ class ControladoriaApp {
         document.getElementById('btnRefresh').addEventListener('click', () => this.refreshData());
         document.getElementById('btnExport').addEventListener('click', () => this.exportToXLSX());
         document.getElementById('btnEditSaldo').addEventListener('click', () => this.editarSaldo());
+        document.getElementById('btnClear').addEventListener('click', () => this.limparDados());
         
         // Paginação
         document.getElementById('btnPrevPage').addEventListener('click', () => this.changePage(-1));
@@ -143,8 +145,32 @@ class ControladoriaApp {
                 throw new Error('Nenhuma transação encontrada no arquivo OFX');
             }
             
-            this.ofxData = ofxData;
-            status.innerHTML = `<i class="fas fa-check-circle text-green-500 mr-1"></i>${ofxData.length} transações importadas`;
+            // PROTEÇÃO CONTRA DUPLICAÇÃO
+            const transacoesExistentes = new Set(
+                this.ofxData.map(t => t.id || `${t.data.getTime()}_${t.descricao}_${t.valor}`)
+            );
+            
+            const transacoesNovas = ofxData.filter(transacao => {
+                const chave = transacao.id || `${transacao.data.getTime()}_${transacao.descricao}_${transacao.valor}`;
+                return !transacoesExistentes.has(chave);
+            });
+            
+            const transacoesDuplicadas = ofxData.length - transacoesNovas.length;
+            
+            // Adicionar apenas transações novas
+            this.ofxData = [...this.ofxData, ...transacoesNovas];
+            
+            const mensagem = transacoesDuplicadas > 0 
+                ? `${transacoesNovas.length} novas transações importadas (${transacoesDuplicadas} duplicadas ignoradas)`
+                : `${transacoesNovas.length} transações importadas`;
+            
+            status.innerHTML = `<i class="fas fa-check-circle text-green-500 mr-1"></i>${mensagem}`;
+            
+            console.log('✅ OFX processado:');
+            console.log('  Total no arquivo:', ofxData.length);
+            console.log('  Novas importadas:', transacoesNovas.length);
+            console.log('  Duplicadas ignoradas:', transacoesDuplicadas);
+            console.log('  Total no sistema:', this.ofxData.length);
             
             // Realizar conciliação automaticamente
             this.realizarConciliacao();
@@ -241,10 +267,32 @@ class ControladoriaApp {
                 throw new Error('Nenhuma conta a pagar encontrada no arquivo');
             }
             
-            this.contasPagar = data;
-            status.innerHTML = `<i class="fas fa-check-circle text-green-500 mr-1"></i>${data.length} contas a pagar importadas`;
+            // PROTEÇÃO CONTRA DUPLICAÇÃO
+            const contasExistentes = new Set(
+                this.contasPagar.map(c => `${c.data.getTime()}_${c.descricao}_${c.valor}`)
+            );
             
-            console.log('✅ Contas a pagar Omie importadas:', this.contasPagar.length);
+            const contasNovas = data.filter(conta => {
+                const chave = `${conta.data.getTime()}_${conta.descricao}_${conta.valor}`;
+                return !contasExistentes.has(chave);
+            });
+            
+            const contasDuplicadas = data.length - contasNovas.length;
+            
+            // Adicionar apenas contas novas
+            this.contasPagar = [...this.contasPagar, ...contasNovas];
+            
+            const mensagem = contasDuplicadas > 0 
+                ? `${contasNovas.length} novas contas importadas (${contasDuplicadas} duplicadas ignoradas)`
+                : `${contasNovas.length} contas a pagar importadas`;
+            
+            status.innerHTML = `<i class="fas fa-check-circle text-green-500 mr-1"></i>${mensagem}`;
+            
+            console.log('✅ Contas a pagar Omie:');
+            console.log('  Total no arquivo:', data.length);
+            console.log('  Novas importadas:', contasNovas.length);
+            console.log('  Duplicadas ignoradas:', contasDuplicadas);
+            console.log('  Total no sistema:', this.contasPagar.length);
             
             // Realizar conciliação se houver dados OFX
             if (this.ofxData.length > 0) {
@@ -603,6 +651,32 @@ class ControladoriaApp {
             } else {
                 alert('❌ Valor inválido! Use apenas números.');
             }
+        }
+    }
+    
+    // Limpar todos os dados importados
+    limparDados() {
+        const confirma = confirm(
+            '⚠️ ATENÇÃO: Isso vai apagar TODOS os dados importados (CSV + OFX).\n\n' +
+            'Deseja continuar?'
+        );
+        
+        if (confirma) {
+            this.contasPagar = [];
+            this.ofxData = [];
+            this.transacoesConciliadas = [];
+            this.saldoBancario = 0;
+            this.currentPage = 1;
+            
+            // Limpar status de importação
+            document.getElementById('ofxStatus').innerHTML = 
+                '<i class="fas fa-info-circle text-gray-500 mr-1"></i>Nenhum arquivo importado';
+            document.getElementById('omieStatus').innerHTML = 
+                '<i class="fas fa-info-circle text-gray-500 mr-1"></i>Nenhum arquivo importado';
+            
+            this.updateDashboard();
+            console.log('🗑️ Todos os dados foram limpos');
+            alert('✅ Dados limpos com sucesso!');
         }
     }
     
@@ -1006,6 +1080,7 @@ class ControladoriaApp {
     
     updateTable() {
         const tbody = document.getElementById('tableBody');
+        const tfoot = document.getElementById('tableFoot');
         const filtered = this.getFilteredData();
         
         // Paginação
@@ -1022,15 +1097,21 @@ class ControladoriaApp {
                     </td>
                 </tr>
             `;
+            tfoot.innerHTML = '';
             return;
         }
         
-        tbody.innerHTML = page.map(item => `
-            <tr class="table-row border-b border-gray-800">
+        // INDICADOR VISUAL DE DIVERGÊNCIA: linhas com Previsto ≠ Realizado ficam destacadas
+        tbody.innerHTML = page.map(item => {
+            const temDivergencia = item.valorPrevisto !== item.valorRealizado && item.valorRealizado > 0;
+            const classDivergencia = temDivergencia ? 'bg-yellow-900 bg-opacity-20' : '';
+            
+            return `
+            <tr class="table-row border-b border-gray-800 ${classDivergencia}">
                 <td class="py-3 px-4 text-gray-300">${this.formatDateBR(item.data)}</td>
                 <td class="py-3 px-4 text-gray-300">${this.escapeHtml(item.descricao)}</td>
                 <td class="py-3 px-4 text-gray-400 text-sm">${this.escapeHtml(item.projeto)}</td>
-                <td class="py-3 px-4 text-gray-400 text-sm">${this.escapeHtml(item.categoria || 'Sem categoria')}</td>
+                <td class="py-3 px-4 text-gray-400 text-sm" title="${this.escapeHtml(item.categoria || 'Sem categoria')}">${this.escapeHtml(item.categoria || 'Sem categoria')}</td>
                 <td class="py-3 px-4 text-right text-gray-300 font-mono">${this.formatCurrency(item.valorPrevisto)}</td>
                 <td class="py-3 px-4 text-right text-gray-300 font-mono">${this.formatCurrency(item.valorRealizado)}</td>
                 <td class="py-3 px-4 text-center">
@@ -1040,7 +1121,20 @@ class ControladoriaApp {
                     ${this.getTipoBadge(item.tipo)}
                 </td>
             </tr>
-        `).join('');
+        `}).join('');
+        
+        // TOTALIZAÇÃO: calcular totais de Previsto e Realizado
+        const totalPrevisto = filtered.reduce((sum, item) => sum + item.valorPrevisto, 0);
+        const totalRealizado = filtered.reduce((sum, item) => sum + item.valorRealizado, 0);
+        
+        tfoot.innerHTML = `
+            <tr class="border-t-2 border-blue-500 bg-gray-900 bg-opacity-50">
+                <td colspan="4" class="py-3 px-4 text-right font-bold text-gray-300">TOTAL:</td>
+                <td class="py-3 px-4 text-right font-bold text-blue-400 font-mono">${this.formatCurrency(totalPrevisto)}</td>
+                <td class="py-3 px-4 text-right font-bold text-green-400 font-mono">${this.formatCurrency(totalRealizado)}</td>
+                <td colspan="2" class="py-3 px-4"></td>
+            </tr>
+        `;
         
         // Atualizar informações de paginação
         document.getElementById('tableTotal').textContent = filtered.length;
@@ -1084,6 +1178,7 @@ class ControladoriaApp {
         this.updateKPIs();
         this.updateChart(30);
         this.updateProjectFilter();
+        this.updateCategoriaFilter();
         this.updateTable();
     }
     
@@ -1103,6 +1198,12 @@ class ControladoriaApp {
             data = data.filter(item => item.projeto === projeto);
         }
         
+        // FILTRO DE CATEGORIA
+        const categoria = document.getElementById('filterCategoria').value;
+        if (categoria) {
+            data = data.filter(item => item.categoria === categoria);
+        }
+        
         // Filtro de status
         const status = document.getElementById('filterStatus').value;
         if (status) {
@@ -1120,12 +1221,13 @@ class ControladoriaApp {
             data = data.filter(item => item.tipo === tipo);
         }
         
-        // Filtro de busca
+        // BUSCA AVANÇADA (incluindo categoria)
         const search = document.getElementById('searchTable').value.toLowerCase();
         if (search) {
             data = data.filter(item => 
                 item.descricao.toLowerCase().includes(search) ||
                 item.projeto.toLowerCase().includes(search) ||
+                (item.categoria || '').toLowerCase().includes(search) ||
                 this.formatDateBR(item.data).includes(search)
             );
         }
@@ -1184,6 +1286,26 @@ class ControladoriaApp {
         select.innerHTML = '<option value="">Todos</option>' +
             Array.from(projetos).sort().map(p => 
                 `<option value="${p}">${this.escapeHtml(p)}</option>`
+            ).join('');
+        
+        select.value = currentValue;
+    }
+    
+    // Atualizar lista de categorias no filtro
+    updateCategoriaFilter() {
+        const categorias = new Set();
+        this.transacoesConciliadas.forEach(item => {
+            if (item.categoria && item.categoria !== 'Sem categoria') {
+                categorias.add(item.categoria);
+            }
+        });
+        
+        const select = document.getElementById('filterCategoria');
+        const currentValue = select.value;
+        
+        select.innerHTML = '<option value="">Todas</option>' +
+            Array.from(categorias).sort().map(c => 
+                `<option value="${c}">${this.escapeHtml(c)}</option>`
             ).join('');
         
         select.value = currentValue;
