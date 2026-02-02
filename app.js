@@ -293,8 +293,30 @@ class ControladoriaApp {
                     // Detectar separador (vírgula ou ponto-e-vírgula)
                     const separator = lines[0].includes(';') ? ';' : ',';
                     
+                    // Função para split respeitando aspas
+                    const splitCSVLine = (line, sep) => {
+                        const result = [];
+                        let current = '';
+                        let inQuotes = false;
+                        
+                        for (let i = 0; i < line.length; i++) {
+                            const char = line[i];
+                            
+                            if (char === '"') {
+                                inQuotes = !inQuotes;
+                            } else if (char === sep && !inQuotes) {
+                                result.push(current.trim());
+                                current = '';
+                            } else {
+                                current += char;
+                            }
+                        }
+                        result.push(current.trim());
+                        return result.map(v => v.replace(/^"|"$/g, ''));
+                    };
+                    
                     // Parsear header
-                    const headers = lines[0].split(separator).map(h => h.trim().replace(/"/g, ''));
+                    const headers = splitCSVLine(lines[0], separator);
                     
                     console.log('📋 Headers CSV:', headers);
                     
@@ -313,7 +335,7 @@ class ControladoriaApp {
                         const line = lines[i].trim();
                         if (!line) continue;
                         
-                        const values = line.split(separator).map(v => v.trim().replace(/"/g, ''));
+                        const values = splitCSVLine(line, separator);
                         
                         // FILTRO: ignorar linhas de SALDO e linhas sem data válida
                         const descricao = columnMap.descricao ? values[columnMap.descricao] : '';
@@ -335,7 +357,7 @@ class ControladoriaApp {
                                 descricao: descricao || 'Sem descrição',
                                 valor: valor,
                                 projeto: projeto || 'Sem projeto',
-                                categoria: categoria || 'Sem categoria',
+                                categoria: this.formatCategoria(categoria),
                                 status: status || 'PENDENTE',
                                 tipo: 'saida',
                                 origem: 'OMIE_CSV'
@@ -417,7 +439,7 @@ class ControladoriaApp {
                                 descricao: descricao || 'Sem descrição',
                                 valor: valor,
                                 projeto: projeto || 'Sem projeto',
-                                categoria: categoria || 'Sem categoria',
+                                categoria: this.formatCategoria(categoria),
                                 status: status || 'PENDENTE',
                                 tipo: 'saida',
                                 origem: 'OMIE_XLSX'
@@ -543,6 +565,17 @@ class ControladoriaApp {
         
         const valor = parseFloat(str);
         return isNaN(valor) ? 0 : Math.abs(valor);
+    }
+    
+    // Arredondar porcentagens em categorias rateadas
+    formatCategoria(categoria) {
+        if (!categoria) return 'Sem categoria';
+        
+        // Regex para encontrar porcentagens como (13,636364%)
+        return categoria.replace(/\((\d+),(\d+)%\)/g, (match, inteiro, decimal) => {
+            const percentual = parseFloat(`${inteiro}.${decimal}`);
+            return `(${Math.round(percentual)}%)`;
+        });
     }
     
     // ==========================================
