@@ -77,6 +77,13 @@
             transition: all 0.3s;
         }
         
+        /* KPIs Sticky no topo */
+        .sticky {
+            position: sticky;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+            transition: box-shadow 0.3s ease;
+        }
+        
         .drag-drop-zone.dragging {
             border-color: #3b82f6;
             background: rgba(59, 130, 246, 0.1);
@@ -282,8 +289,9 @@
             </div>
         </div>
         
-        <!-- KPI Cards -->
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        <!-- KPI Cards - FIXO NO TOPO -->
+        <div class="sticky top-0 z-40 bg-gray-900 pb-6 mb-6">
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <!-- Saldo Bancário -->
             <div class="stat-card glass-effect rounded-lg p-6">
                 <div class="flex items-center justify-between mb-2">
@@ -335,6 +343,7 @@
                 <div class="text-xs text-gray-500 mt-2">
                     <span id="kpiProjecaoStatus">-</span>
                 </div>
+            </div>
             </div>
         </div>
         
