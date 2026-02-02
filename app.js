@@ -159,31 +159,51 @@ class ControladoriaApp {
                 throw new Error('Nenhuma transação encontrada no arquivo OFX');
             }
             
-            // PROTEÇÃO CONTRA DUPLICAÇÃO
-            const transacoesExistentes = new Set(
-                this.ofxData.map(t => t.id || `${t.data.getTime()}_${t.descricao}_${t.valor}`)
+            // PROTEÇÃO CONTRA DUPLICAÇÃO + ATUALIZAÇÃO INTELIGENTE
+            const transacoesMap = new Map(
+                this.ofxData.map(t => [
+                    t.id || `${t.data.getTime()}_${t.descricao}_${t.valor}`,
+                    t
+                ])
             );
             
-            const transacoesNovas = ofxData.filter(transacao => {
+            let transacoesNovas = 0;
+            let transacoesAtualizadas = 0;
+            
+            ofxData.forEach(transacao => {
                 const chave = transacao.id || `${transacao.data.getTime()}_${transacao.descricao}_${transacao.valor}`;
-                return !transacoesExistentes.has(chave);
+                
+                if (transacoesMap.has(chave)) {
+                    // ATUALIZAR transação existente
+                    const transacaoExistente = transacoesMap.get(chave);
+                    transacaoExistente.descricao = transacao.descricao;
+                    transacaoExistente.memo = transacao.memo;
+                    transacaoExistente.tipo = transacao.tipo;
+                    transacoesAtualizadas++;
+                } else {
+                    // ADICIONAR nova transação
+                    this.ofxData.push(transacao);
+                    transacoesNovas++;
+                }
             });
             
-            const transacoesDuplicadas = ofxData.length - transacoesNovas.length;
-            
-            // Adicionar apenas transações novas
-            this.ofxData = [...this.ofxData, ...transacoesNovas];
-            
-            const mensagem = transacoesDuplicadas > 0 
-                ? `${transacoesNovas.length} novas transações importadas (${transacoesDuplicadas} duplicadas ignoradas)`
-                : `${transacoesNovas.length} transações importadas`;
+            let mensagem = '';
+            if (transacoesNovas > 0 && transacoesAtualizadas > 0) {
+                mensagem = `${transacoesNovas} novas transações, ${transacoesAtualizadas} atualizadas`;
+            } else if (transacoesNovas > 0) {
+                mensagem = `${transacoesNovas} novas transações importadas`;
+            } else if (transacoesAtualizadas > 0) {
+                mensagem = `${transacoesAtualizadas} transações atualizadas`;
+            } else {
+                mensagem = `0 alterações (todos os dados já estão atualizados)`;
+            }
             
             status.innerHTML = `<i class="fas fa-check-circle text-green-500 mr-1"></i>${mensagem}`;
             
             console.log('✅ OFX processado:');
             console.log('  Total no arquivo:', ofxData.length);
-            console.log('  Novas importadas:', transacoesNovas.length);
-            console.log('  Duplicadas ignoradas:', transacoesDuplicadas);
+            console.log('  Novas importadas:', transacoesNovas);
+            console.log('  Atualizadas:', transacoesAtualizadas);
             console.log('  Total no sistema:', this.ofxData.length);
             
             // Realizar conciliação automaticamente
