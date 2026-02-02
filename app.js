@@ -133,12 +133,9 @@ class ControladoriaApp {
     
     // Inicializar filtros com data atual
     initializeFilters() {
-        const today = new Date();
-        const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
-        const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
-        
-        document.getElementById('dateStart').value = this.formatDateInput(startOfMonth);
-        document.getElementById('dateEnd').value = this.formatDateInput(endOfMonth);
+        // Filtros inicializados com valores padrão
+        // Flatpickr será inicializado em setupEventListeners()
+        console.log('✅ Filtros inicializados');
     }
     
     // ==========================================
