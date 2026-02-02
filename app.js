@@ -97,8 +97,15 @@ class ControladoriaApp {
         document.getElementById('filterCategoria').addEventListener('change', () => this.updateDashboard());
         document.getElementById('filterStatus').addEventListener('change', () => this.updateDashboard());
         document.getElementById('filterType').addEventListener('change', () => this.updateDashboard());
-        document.getElementById('dateStart').addEventListener('change', () => this.updateDashboard());
-        document.getElementById('dateEnd').addEventListener('change', () => this.updateDashboard());
+        
+        // Inicializar Flatpickr (calendário moderno de intervalo de datas)
+        this.dateRangePicker = flatpickr("#dateRangePicker", {
+            mode: "range",
+            locale: "pt",
+            dateFormat: "d/m/Y",
+            theme: "dark",
+            onChange: () => this.updateDashboard()
+        });
         
         // Busca
         document.getElementById('searchTable').addEventListener('input', () => this.applyFilters());
@@ -1497,7 +1504,16 @@ class ControladoriaApp {
         const { dataInicial, dataFinal } = this.getDateRange();
         data = data.filter(item => {
             const itemDate = new Date(item.data);
-            return itemDate >= dataInicial && itemDate <= dataFinal;
+            // Normalizar para comparar apenas data (sem hora)
+            itemDate.setHours(0, 0, 0, 0);
+            
+            const inicio = new Date(dataInicial);
+            inicio.setHours(0, 0, 0, 0);
+            
+            const fim = new Date(dataFinal);
+            fim.setHours(0, 0, 0, 0);
+            
+            return itemDate >= inicio && itemDate <= fim;
         });
         
         // Filtro de projeto
@@ -1571,25 +1587,45 @@ class ControladoriaApp {
             case 'today':
                 dataInicial = new Date(today);
                 dataFinal = new Date(today);
+                dataFinal.setHours(23, 59, 59, 999);
                 break;
             case 'yesterday':
                 const yesterday = new Date(today);
                 yesterday.setDate(yesterday.getDate() - 1);
                 dataInicial = new Date(yesterday);
+                dataInicial.setHours(0, 0, 0, 0);
                 dataFinal = new Date(yesterday);
+                dataFinal.setHours(23, 59, 59, 999);
                 break;
             case 'week':
                 dataInicial = new Date(today);
                 dataFinal = new Date(today);
                 dataFinal.setDate(dataFinal.getDate() + 7);
+                dataFinal.setHours(23, 59, 59, 999);
                 break;
             case 'month':
                 dataInicial = new Date(today.getFullYear(), today.getMonth(), 1);
                 dataFinal = new Date(today.getFullYear(), today.getMonth() + 1, 0);
                 break;
             case 'custom':
-                dataInicial = new Date(document.getElementById('dateStart').value);
-                dataFinal = new Date(document.getElementById('dateEnd').value);
+                // Pegar datas selecionadas do Flatpickr
+                const selectedDates = this.dateRangePicker?.selectedDates || [];
+                if (selectedDates.length === 2) {
+                    dataInicial = new Date(selectedDates[0]);
+                    dataInicial.setHours(0, 0, 0, 0);
+                    dataFinal = new Date(selectedDates[1]);
+                    dataFinal.setHours(23, 59, 59, 999);
+                } else if (selectedDates.length === 1) {
+                    // Se só uma data selecionada, usar mesmo dia
+                    dataInicial = new Date(selectedDates[0]);
+                    dataInicial.setHours(0, 0, 0, 0);
+                    dataFinal = new Date(selectedDates[0]);
+                    dataFinal.setHours(23, 59, 59, 999);
+                } else {
+                    // Se nenhuma data selecionada, usar mês atual
+                    dataInicial = new Date(today.getFullYear(), today.getMonth(), 1);
+                    dataFinal = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+                }
                 break;
             default:
                 dataInicial = new Date(today.getFullYear(), today.getMonth(), 1);
