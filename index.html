@@ -211,6 +211,15 @@
             
             <div>
                 <label class="block text-sm font-semibold mb-2 text-gray-300">
+                    <i class="fas fa-tag mr-2"></i>Categoria
+                </label>
+                <select id="filterCategoria" class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:border-blue-500 focus:outline-none">
+                    <option value="">Todas</option>
+                </select>
+            </div>
+            
+            <div>
+                <label class="block text-sm font-semibold mb-2 text-gray-300">
                     <i class="fas fa-check-circle mr-2"></i>Status de Pagamento
                 </label>
                 <select id="filterStatus" class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:border-blue-500 focus:outline-none">
@@ -240,6 +249,9 @@
             </button>
             <button id="btnExport" class="w-full bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-semibold text-sm transition">
                 <i class="fas fa-file-excel mr-2"></i>Exportar XLSX
+            </button>
+            <button id="btnClear" class="w-full bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg font-semibold text-sm transition">
+                <i class="fas fa-trash-alt mr-2"></i>Limpar Todos os Dados
             </button>
         </div>
         
@@ -383,6 +395,9 @@
                             </td>
                         </tr>
                     </tbody>
+                    <tfoot id="tableFoot">
+                        <!-- Rodapé com totalizações será preenchido via JS -->
+                    </tfoot>
                 </table>
             </div>
             
