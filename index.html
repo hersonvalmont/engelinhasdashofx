@@ -276,7 +276,12 @@
             <div class="stat-card glass-effect rounded-lg p-6">
                 <div class="flex items-center justify-between mb-2">
                     <span class="text-gray-400 text-sm font-medium">Saldo Bancário</span>
-                    <i class="fas fa-wallet text-blue-500 text-xl"></i>
+                    <div class="flex items-center gap-2">
+                        <button id="btnEditSaldo" class="text-gray-400 hover:text-blue-500 transition" title="Editar saldo manualmente">
+                            <i class="fas fa-edit text-sm"></i>
+                        </button>
+                        <i class="fas fa-wallet text-blue-500 text-xl"></i>
+                    </div>
                 </div>
                 <div class="text-3xl font-bold" id="kpiSaldo">R$ 0,00</div>
                 <div class="text-xs text-gray-500 mt-2">
