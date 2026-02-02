@@ -1370,8 +1370,14 @@ class ControladoriaApp {
         // Pegar intervalo de datas baseado no filtro
         const { dataInicial, dataFinal } = this.getDateRange();
         
+        console.log('📊 getChartData chamado:');
+        console.log('  - days:', days);
+        console.log('  - dataInicial:', dataInicial);
+        console.log('  - dataFinal:', dataFinal);
+        
         // Se for período personalizado, usar as datas do filtro
         const periodo = document.getElementById('filterPeriod').value;
+        console.log('  - periodo:', periodo);
         
         let startDate, endDate;
         
@@ -1379,6 +1385,7 @@ class ControladoriaApp {
             // Usar exatamente as datas do filtro
             startDate = new Date(dataInicial);
             endDate = new Date(dataFinal);
+            console.log('  → Usando datas do filtro');
         } else {
             // Para outros períodos (semana, mês), contar pra trás de hoje
             const today = new Date();
@@ -1386,10 +1393,14 @@ class ControladoriaApp {
             endDate = new Date(today);
             startDate = new Date(today);
             startDate.setDate(today.getDate() - days + 1);
+            console.log('  → Contando pra trás de hoje');
         }
         
         startDate.setHours(0, 0, 0, 0);
         endDate.setHours(0, 0, 0, 0);
+        
+        console.log('  - startDate final:', this.formatDateBR(startDate));
+        console.log('  - endDate final:', this.formatDateBR(endDate));
         
         // Gerar labels e dados para cada dia do intervalo
         const currentDate = new Date(startDate);
@@ -1422,6 +1433,9 @@ class ControladoriaApp {
             // Próximo dia
             currentDate.setDate(currentDate.getDate() + 1);
         }
+        
+        console.log('  - Labels gerados:', labels);
+        console.log('  - Total de pontos:', labels.length);
         
         return { labels, previsto, realizado };
     }
