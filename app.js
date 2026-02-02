@@ -493,9 +493,15 @@ class ControladoriaApp {
             }
         }
         
-        // Formato YYYY-MM-DD
+        // Formato YYYY-MM-DD (CORRIGIDO para evitar timezone)
         if (str.includes('-')) {
-            return new Date(str);
+            const parts = str.split('-');
+            if (parts.length === 3) {
+                const year = parseInt(parts[0]);
+                const month = parseInt(parts[1]);
+                const day = parseInt(parts[2]);
+                return new Date(year, month - 1, day);
+            }
         }
         
         // Formato Excel serial date
