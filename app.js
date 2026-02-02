@@ -260,6 +260,7 @@ class ControladoriaApp {
                     valorPrevisto: conta.valor,
                     valorRealizado: 0,
                     projeto: conta.projeto,
+                    categoria: conta.categoria || 'Sem categoria',
                     origem: 'OMIE'
                 }));
             }
@@ -323,6 +324,7 @@ class ControladoriaApp {
                         const data = this.parseOmieDate(values[columnMap.data]);
                         const valor = this.parseOmieValor(values[columnMap.valor]);
                         const projeto = columnMap.projeto ? values[columnMap.projeto] : 'Sem projeto';
+                        const categoria = columnMap.categoria ? values[columnMap.categoria] : 'Sem categoria';
                         const status = columnMap.status !== undefined ? values[columnMap.status] : 'PENDENTE';
                         
                         // FILTRO: só incluir se tiver data E valor > 0
@@ -333,6 +335,7 @@ class ControladoriaApp {
                                 descricao: descricao || 'Sem descrição',
                                 valor: valor,
                                 projeto: projeto || 'Sem projeto',
+                                categoria: categoria || 'Sem categoria',
                                 status: status || 'PENDENTE',
                                 tipo: 'saida',
                                 origem: 'OMIE_CSV'
@@ -403,6 +406,7 @@ class ControladoriaApp {
                         const data = this.parseOmieDate(row[columnMap.data]);
                         const valor = this.parseOmieValor(row[columnMap.valor]);
                         const projeto = columnMap.projeto ? row[columnMap.projeto] : 'Sem projeto';
+                        const categoria = columnMap.categoria ? row[columnMap.categoria] : 'Sem categoria';
                         const status = columnMap.status !== undefined ? row[columnMap.status] : 'PENDENTE';
                         
                         // FILTRO: só incluir se tiver data E valor > 0
@@ -413,6 +417,7 @@ class ControladoriaApp {
                                 descricao: descricao || 'Sem descrição',
                                 valor: valor,
                                 projeto: projeto || 'Sem projeto',
+                                categoria: categoria || 'Sem categoria',
                                 status: status || 'PENDENTE',
                                 tipo: 'saida',
                                 origem: 'OMIE_XLSX'
@@ -454,6 +459,11 @@ class ControladoriaApp {
                 if (!map.descricao || h.includes('fornecedor') || h.includes('fantasia')) {
                     map.descricao = index;
                 }
+            }
+            
+            // Categoria
+            if (h.includes('categoria')) {
+                map.categoria = index;
             }
             
             // Projeto
@@ -672,7 +682,8 @@ class ControladoriaApp {
                 contaOmie: contaConciliada,
                 valorPrevisto: contaConciliada ? contaConciliada.valor : 0,
                 valorRealizado: Math.abs(transacao.valor),
-                projeto: contaConciliada ? contaConciliada.projeto : 'N/A'
+                projeto: contaConciliada ? contaConciliada.projeto : 'N/A',
+                categoria: contaConciliada ? contaConciliada.categoria : 'Sem categoria'
             });
         });
         
@@ -692,6 +703,7 @@ class ControladoriaApp {
                     valorPrevisto: conta.valor,
                     valorRealizado: 0,
                     projeto: conta.projeto,
+                    categoria: conta.categoria || 'Sem categoria',
                     origem: 'OMIE'
                 });
             }
@@ -943,7 +955,7 @@ class ControladoriaApp {
         if (page.length === 0) {
             tbody.innerHTML = `
                 <tr>
-                    <td colspan="7" class="text-center py-8 text-gray-500">
+                    <td colspan="8" class="text-center py-8 text-gray-500">
                         <i class="fas fa-search text-4xl mb-2"></i>
                         <p>Nenhum registro encontrado com os filtros aplicados.</p>
                     </td>
@@ -957,6 +969,7 @@ class ControladoriaApp {
                 <td class="py-3 px-4 text-gray-300">${this.formatDateBR(item.data)}</td>
                 <td class="py-3 px-4 text-gray-300">${this.escapeHtml(item.descricao)}</td>
                 <td class="py-3 px-4 text-gray-400 text-sm">${this.escapeHtml(item.projeto)}</td>
+                <td class="py-3 px-4 text-gray-400 text-sm">${this.escapeHtml(item.categoria || 'Sem categoria')}</td>
                 <td class="py-3 px-4 text-right text-gray-300 font-mono">${this.formatCurrency(item.valorPrevisto)}</td>
                 <td class="py-3 px-4 text-right text-gray-300 font-mono">${this.formatCurrency(item.valorRealizado)}</td>
                 <td class="py-3 px-4 text-center">
@@ -1132,6 +1145,7 @@ class ControladoriaApp {
             'Data': this.formatDateBR(item.data),
             'Descrição': item.descricao,
             'Projeto': item.projeto,
+            'Categoria': item.categoria || 'Sem categoria',
             'Previsto': this.formatCurrency(item.valorPrevisto),
             'Realizado': this.formatCurrency(item.valorRealizado),
             'Status': item.statusConciliacao,
@@ -1147,9 +1161,12 @@ class ControladoriaApp {
             { wch: 12 }, // Data
             { wch: 40 }, // Descrição
             { wch: 20 }, // Projeto
+            { wch: 30 }, // Categoria
             { wch: 15 }, // Previsto
             { wch: 15 }, // Realizado
             { wch: 20 }, // Status
+            { wch: 10 }  // Tipo
+        ];
             { wch: 10 }  // Tipo
         ];
         
