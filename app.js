@@ -275,31 +275,51 @@ class ControladoriaApp {
                 throw new Error('Nenhuma conta a pagar encontrada no arquivo');
             }
             
-            // PROTEÇÃO CONTRA DUPLICAÇÃO
-            const contasExistentes = new Set(
-                this.contasPagar.map(c => `${c.data.getTime()}_${c.descricao}_${c.valor}`)
+            // PROTEÇÃO CONTRA DUPLICAÇÃO + ATUALIZAÇÃO INTELIGENTE
+            const contasMap = new Map(
+                this.contasPagar.map(c => [
+                    `${c.data.getTime()}_${c.descricao}_${c.valor}`,
+                    c
+                ])
             );
             
-            const contasNovas = data.filter(conta => {
+            let contasNovas = 0;
+            let contasAtualizadas = 0;
+            
+            data.forEach(conta => {
                 const chave = `${conta.data.getTime()}_${conta.descricao}_${conta.valor}`;
-                return !contasExistentes.has(chave);
+                
+                if (contasMap.has(chave)) {
+                    // ATUALIZAR registro existente
+                    const contaExistente = contasMap.get(chave);
+                    contaExistente.status = conta.status;
+                    contaExistente.projeto = conta.projeto;
+                    contaExistente.categoria = conta.categoria;
+                    contasAtualizadas++;
+                } else {
+                    // ADICIONAR nova conta
+                    this.contasPagar.push(conta);
+                    contasNovas++;
+                }
             });
             
-            const contasDuplicadas = data.length - contasNovas.length;
-            
-            // Adicionar apenas contas novas
-            this.contasPagar = [...this.contasPagar, ...contasNovas];
-            
-            const mensagem = contasDuplicadas > 0 
-                ? `${contasNovas.length} novas contas importadas (${contasDuplicadas} duplicadas ignoradas)`
-                : `${contasNovas.length} contas a pagar importadas`;
+            let mensagem = '';
+            if (contasNovas > 0 && contasAtualizadas > 0) {
+                mensagem = `${contasNovas} novas contas, ${contasAtualizadas} atualizadas`;
+            } else if (contasNovas > 0) {
+                mensagem = `${contasNovas} novas contas importadas`;
+            } else if (contasAtualizadas > 0) {
+                mensagem = `${contasAtualizadas} contas atualizadas`;
+            } else {
+                mensagem = `0 alterações (todos os dados já estão atualizados)`;
+            }
             
             status.innerHTML = `<i class="fas fa-check-circle text-green-500 mr-1"></i>${mensagem}`;
             
             console.log('✅ Contas a pagar Omie:');
             console.log('  Total no arquivo:', data.length);
-            console.log('  Novas importadas:', contasNovas.length);
-            console.log('  Duplicadas ignoradas:', contasDuplicadas);
+            console.log('  Novas importadas:', contasNovas);
+            console.log('  Atualizadas:', contasAtualizadas);
             console.log('  Total no sistema:', this.contasPagar.length);
             
             // Realizar conciliação se houver dados OFX
@@ -1551,6 +1571,12 @@ class ControladoriaApp {
             case 'today':
                 dataInicial = new Date(today);
                 dataFinal = new Date(today);
+                break;
+            case 'yesterday':
+                const yesterday = new Date(today);
+                yesterday.setDate(yesterday.getDate() - 1);
+                dataInicial = new Date(yesterday);
+                dataFinal = new Date(yesterday);
                 break;
             case 'week':
                 dataInicial = new Date(today);
