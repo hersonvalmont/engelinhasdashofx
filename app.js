@@ -1366,21 +1366,43 @@ class ControladoriaApp {
         const labels = [];
         const previsto = [];
         const realizado = [];
-        const today = new Date();
         
-        for (let i = days - 1; i >= 0; i--) {
-            const date = new Date(today);
-            date.setDate(date.getDate() - i);
-            date.setHours(0, 0, 0, 0);
-            
-            labels.push(this.formatDateBR(date));
+        // Pegar intervalo de datas baseado no filtro
+        const { dataInicial, dataFinal } = this.getDateRange();
+        
+        // Se for período personalizado, usar as datas do filtro
+        const periodo = document.getElementById('filterPeriod').value;
+        
+        let startDate, endDate;
+        
+        if (periodo === 'custom' || periodo === 'today' || periodo === 'yesterday') {
+            // Usar exatamente as datas do filtro
+            startDate = new Date(dataInicial);
+            endDate = new Date(dataFinal);
+        } else {
+            // Para outros períodos (semana, mês), contar pra trás de hoje
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            endDate = new Date(today);
+            startDate = new Date(today);
+            startDate.setDate(today.getDate() - days + 1);
+        }
+        
+        startDate.setHours(0, 0, 0, 0);
+        endDate.setHours(0, 0, 0, 0);
+        
+        // Gerar labels e dados para cada dia do intervalo
+        const currentDate = new Date(startDate);
+        
+        while (currentDate <= endDate) {
+            labels.push(this.formatDateBR(currentDate));
             
             // Somar valores previstos (Omie)
             const previstoDay = this.contasPagar
                 .filter(c => {
                     const d = new Date(c.data);
                     d.setHours(0, 0, 0, 0);
-                    return d.getTime() === date.getTime();
+                    return d.getTime() === currentDate.getTime();
                 })
                 .reduce((sum, c) => sum + c.valor, 0);
             
@@ -1391,11 +1413,14 @@ class ControladoriaApp {
                 .filter(t => {
                     const d = new Date(t.data);
                     d.setHours(0, 0, 0, 0);
-                    return d.getTime() === date.getTime();
+                    return d.getTime() === currentDate.getTime();
                 })
                 .reduce((sum, t) => sum + Math.abs(t.valor), 0);
             
             realizado.push(realizadoDay);
+            
+            // Próximo dia
+            currentDate.setDate(currentDate.getDate() + 1);
         }
         
         return { labels, previsto, realizado };
