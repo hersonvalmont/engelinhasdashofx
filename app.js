@@ -112,6 +112,11 @@ class ControladoriaApp {
         // Paginação
         document.getElementById('btnPrevPage').addEventListener('click', () => this.changePage(-1));
         document.getElementById('btnNextPage').addEventListener('click', () => this.changePage(1));
+        document.getElementById('inputGoToPage').addEventListener('change', (e) => this.goToPage(parseInt(e.target.value)));
+        document.getElementById('inputGoToPage').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') this.goToPage(parseInt(e.target.value));
+        });
+        document.getElementById('btnShowAll').addEventListener('click', () => this.showAll());
         
         // Chart buttons
         document.getElementById('btnChartWeek').addEventListener('click', () => this.updateChartPeriod(7));
@@ -1016,6 +1021,43 @@ class ControladoriaApp {
         };
     }
     
+    // Comparação com mês passado
+    calcularComparacaoMensal() {
+        const hoje = new Date();
+        const mesAtual = hoje.getMonth();
+        const anoAtual = hoje.getFullYear();
+        
+        const mesPassado = mesAtual === 0 ? 11 : mesAtual - 1;
+        const anoPassado = mesAtual === 0 ? anoAtual - 1 : anoAtual;
+        
+        // Calcular total do mês atual
+        const totalMesAtual = this.contasPagar
+            .filter(c => {
+                const d = new Date(c.data);
+                return d.getMonth() === mesAtual && d.getFullYear() === anoAtual;
+            })
+            .reduce((sum, c) => sum + c.valor, 0);
+        
+        // Calcular total do mês passado
+        const totalMesPassado = this.contasPagar
+            .filter(c => {
+                const d = new Date(c.data);
+                return d.getMonth() === mesPassado && d.getFullYear() === anoPassado;
+            })
+            .reduce((sum, c) => sum + c.valor, 0);
+        
+        // Calcular variação percentual
+        const variacao = totalMesPassado > 0 
+            ? ((totalMesAtual - totalMesPassado) / totalMesPassado * 100)
+            : 0;
+        
+        return {
+            mesAtual: totalMesAtual,
+            mesPassado: totalMesPassado,
+            variacao: variacao
+        };
+    }
+    
     updateKPIs() {
         const kpis = this.calculateKPIs();
         
@@ -1039,7 +1081,16 @@ class ControladoriaApp {
                 : '<i class="fas fa-arrow-down text-red-500 mr-1"></i>Negativo';
         
         document.getElementById('kpiPagarHoje').textContent = this.formatCurrency(kpis.totalPagarHoje);
-        document.getElementById('kpiPagarHojeQtd').textContent = `${kpis.contasHoje} contas`;
+        
+        // Comparação com mês passado
+        const comparacao = this.calcularComparacaoMensal();
+        const variacaoPercent = comparacao.variacao.toFixed(1);
+        const iconVariacao = comparacao.variacao >= 0 
+            ? `<i class="fas fa-arrow-up text-red-500"></i>` 
+            : `<i class="fas fa-arrow-down text-green-500"></i>`;
+        
+        document.getElementById('kpiPagarHojeQtd').innerHTML = 
+            `${kpis.contasHoje} contas • ${iconVariacao} ${Math.abs(variacaoPercent)}% vs mês passado`;
         
         document.getElementById('kpiPagarSemana').textContent = this.formatCurrency(kpis.totalPagarSemana);
         document.getElementById('kpiPagarSemanaQtd').textContent = `${kpis.contasSemana} contas`;
@@ -1049,6 +1100,60 @@ class ControladoriaApp {
             kpis.projecaoSaldo >= 0 
                 ? '<i class="fas fa-check-circle text-green-500 mr-1"></i>Saudável'
                 : '<i class="fas fa-exclamation-triangle text-red-500 mr-1"></i>Atenção';
+        
+        // Atualizar Top 5 Categorias
+        this.updateTop5Categorias();
+    }
+    
+    // Top 5 Categorias com Maior Gasto
+    updateTop5Categorias() {
+        const categorias = {};
+        
+        // Agrupar gastos por categoria
+        this.transacoesConciliadas.forEach(item => {
+            const cat = item.categoria || 'Sem categoria';
+            if (!categorias[cat]) {
+                categorias[cat] = 0;
+            }
+            categorias[cat] += item.valorPrevisto || 0;
+        });
+        
+        // Ordenar e pegar top 5
+        const top5 = Object.entries(categorias)
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 5);
+        
+        const container = document.getElementById('top5Categorias');
+        
+        if (top5.length === 0) {
+            container.innerHTML = '<p class="text-gray-500 text-center py-4">Nenhum dado disponível</p>';
+            return;
+        }
+        
+        const total = Object.values(categorias).reduce((sum, val) => sum + val, 0);
+        
+        container.innerHTML = top5.map(([categoria, valor], index) => {
+            const percentual = (valor / total * 100).toFixed(1);
+            const medallas = ['🥇', '🥈', '🥉', '4️⃣', '5️⃣'];
+            
+            return `
+                <div class="flex items-center justify-between p-3 bg-gray-800 bg-opacity-50 rounded-lg hover:bg-opacity-70 transition">
+                    <div class="flex items-center gap-3 flex-1">
+                        <span class="text-2xl">${medallas[index]}</span>
+                        <div class="flex-1">
+                            <p class="text-white font-semibold text-sm">${this.escapeHtml(categoria)}</p>
+                            <div class="w-full bg-gray-700 rounded-full h-2 mt-1">
+                                <div class="bg-blue-500 h-2 rounded-full transition-all duration-500" style="width: ${percentual}%"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="text-right ml-4">
+                        <p class="text-white font-bold">${this.formatCurrency(valor)}</p>
+                        <p class="text-gray-400 text-xs">${percentual}%</p>
+                    </div>
+                </div>
+            `;
+        }).join('');
     }
     
     // ==========================================
@@ -1246,11 +1351,14 @@ class ControladoriaApp {
         `;
         
         // Atualizar informações de paginação
+        const totalPages = Math.ceil(filtered.length / this.itemsPerPage);
         document.getElementById('tableTotal').textContent = filtered.length;
         document.getElementById('showingStart').textContent = start + 1;
         document.getElementById('showingEnd').textContent = Math.min(end, filtered.length);
         document.getElementById('showingTotal').textContent = filtered.length;
-        document.getElementById('currentPage').textContent = this.currentPage;
+        document.getElementById('totalPages').textContent = totalPages;
+        document.getElementById('inputGoToPage').value = this.currentPage;
+        document.getElementById('inputGoToPage').max = totalPages;
         
         // Atualizar botões de paginação
         document.getElementById('btnPrevPage').disabled = this.currentPage === 1;
@@ -1288,6 +1396,7 @@ class ControladoriaApp {
         this.updateChart(30);
         this.updateProjectFilter();
         this.updateCategoriaFilter();
+        this.updateTop5Categorias();
         this.updateTable();
     }
     
@@ -1422,6 +1531,56 @@ class ControladoriaApp {
             ).join('');
         
         select.value = currentValue;
+    }
+    
+    // Top 5 Categorias com maior gasto
+    updateTop5Categorias() {
+        const container = document.getElementById('top5Categorias');
+        
+        if (this.transacoesConciliadas.length === 0) {
+            container.innerHTML = '<p class="text-gray-500 text-center py-4">Nenhum dado disponível</p>';
+            return;
+        }
+        
+        // Agrupar por categoria e somar valores
+        const categoriaMap = new Map();
+        this.transacoesConciliadas.forEach(item => {
+            const cat = item.categoria || 'Sem categoria';
+            const valor = item.valorPrevisto || 0;
+            
+            if (!categoriaMap.has(cat)) {
+                categoriaMap.set(cat, 0);
+            }
+            categoriaMap.set(cat, categoriaMap.get(cat) + valor);
+        });
+        
+        // Ordenar e pegar top 5
+        const top5 = Array.from(categoriaMap.entries())
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 5);
+        
+        const totalGeral = Array.from(categoriaMap.values()).reduce((sum, v) => sum + v, 0);
+        
+        container.innerHTML = top5.map(([ categoria, valor], index) => {
+            const percentual = totalGeral > 0 ? (valor / totalGeral * 100).toFixed(1) : 0;
+            const posicao = index + 1;
+            const medalha = posicao === 1 ? '🥇' : posicao === 2 ? '🥈' : posicao === 3 ? '🥉' : `${posicao}º`;
+            
+            return `
+                <div class="flex items-center justify-between p-3 bg-gray-800 bg-opacity-50 rounded-lg">
+                    <div class="flex items-center gap-3 flex-1 min-w-0">
+                        <span class="text-lg font-bold">${medalha}</span>
+                        <div class="flex-1 min-w-0">
+                            <div class="text-sm font-medium text-white truncate">${this.escapeHtml(categoria)}</div>
+                            <div class="text-xs text-gray-400">${percentual}% do total</div>
+                        </div>
+                    </div>
+                    <div class="text-right">
+                        <div class="text-lg font-bold text-white">${this.formatCurrency(valor)}</div>
+                    </div>
+                </div>
+            `;
+        }).join('');
     }
     
     // ==========================================
@@ -1568,6 +1727,56 @@ class ControladoriaApp {
     changePage(delta) {
         this.currentPage += delta;
         this.updateTable();
+    }
+    
+    goToPage(pageNumber) {
+        const filtered = this.getFilteredData();
+        const totalPages = Math.ceil(filtered.length / this.itemsPerPage);
+        
+        if (pageNumber >= 1 && pageNumber <= totalPages) {
+            this.currentPage = pageNumber;
+            this.updateTable();
+        } else {
+            alert(`Página inválida! Digite um número entre 1 e ${totalPages}`);
+            document.getElementById('inputGoToPage').value = this.currentPage;
+        }
+    }
+    
+    showAll() {
+        const filtered = this.getFilteredData();
+        
+        if (filtered.length === 0) {
+            alert('Nenhum dado para mostrar!');
+            return;
+        }
+        
+        if (filtered.length > 500) {
+            const confirma = confirm(
+                `⚠️ ATENÇÃO: Você está prestes a exibir ${filtered.length} registros de uma vez.\n\n` +
+                `Isso pode deixar o navegador lento.\n\n` +
+                `Deseja continuar?`
+            );
+            if (!confirma) return;
+        }
+        
+        // Salvar itemsPerPage original
+        const originalItemsPerPage = this.itemsPerPage;
+        
+        // Mostrar tudo
+        this.itemsPerPage = filtered.length;
+        this.currentPage = 1;
+        this.updateTable();
+        
+        // Mudar texto do botão
+        const btnShowAll = document.getElementById('btnShowAll');
+        btnShowAll.innerHTML = '<i class="fas fa-th-list mr-1"></i>Paginar';
+        btnShowAll.onclick = () => {
+            this.itemsPerPage = originalItemsPerPage;
+            this.currentPage = 1;
+            this.updateTable();
+            btnShowAll.innerHTML = '<i class="fas fa-list mr-1"></i>Mostrar Tudo';
+            btnShowAll.onclick = () => this.showAll();
+        };
     }
 }
 
