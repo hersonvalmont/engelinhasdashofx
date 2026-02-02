@@ -1498,6 +1498,7 @@ class ControladoriaApp {
             const statusMap = {
                 'conciliado': 'CONCILIADO',
                 'nao_provisionado': 'NAO_PROVISIONADO',
+                'atrasado': 'ATRASADO',
                 'pendente': 'PENDENTE'
             };
             const statusBusca = statusMap[status];
@@ -1513,15 +1514,24 @@ class ControladoriaApp {
             data = data.filter(item => item.tipo === tipo);
         }
         
-        // BUSCA AVANÇADA (incluindo categoria)
-        const search = document.getElementById('searchTable').value.toLowerCase();
+        // BUSCA AVANÇADA COM MÚLTIPLOS TERMOS (separados por vírgula ou espaço)
+        const search = document.getElementById('searchTable').value.toLowerCase().trim();
         if (search) {
-            data = data.filter(item => 
-                item.descricao.toLowerCase().includes(search) ||
-                item.projeto.toLowerCase().includes(search) ||
-                (item.categoria || '').toLowerCase().includes(search) ||
-                this.formatDateBR(item.data).includes(search)
-            );
+            // Separar termos por vírgula ou espaço
+            const termos = search.split(/[,\s]+/).filter(t => t.length > 0);
+            
+            // Filtrar: pelo menos um termo deve estar presente
+            data = data.filter(item => {
+                const textoCompleto = [
+                    item.descricao,
+                    item.projeto,
+                    item.categoria || '',
+                    this.formatDateBR(item.data)
+                ].join(' ').toLowerCase();
+                
+                // Retorna true se QUALQUER termo for encontrado
+                return termos.some(termo => textoCompleto.includes(termo));
+            });
         }
         
         // Ordenar por data (mais antiga primeiro)
