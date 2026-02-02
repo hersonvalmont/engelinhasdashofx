@@ -121,6 +121,7 @@ class ControladoriaApp {
         // Chart buttons
         document.getElementById('btnChartWeek').addEventListener('click', () => this.updateChartPeriod(7));
         document.getElementById('btnChartMonth').addEventListener('click', () => this.updateChartPeriod(30));
+        document.getElementById('btnExportChart').addEventListener('click', () => this.exportChartAsPNG());
     }
     
     // Inicializar filtros com data atual
@@ -1058,6 +1059,44 @@ class ControladoriaApp {
         };
     }
     
+    // Comparação com semana passada
+    calcularComparacaoSemanal() {
+        const hoje = new Date();
+        hoje.setHours(0, 0, 0, 0);
+        
+        const proximos7Dias = new Date(hoje);
+        proximos7Dias.setDate(hoje.getDate() + 7);
+        
+        const semanaPassadaInicio = new Date(hoje);
+        semanaPassadaInicio.setDate(hoje.getDate() - 7);
+        
+        // Total próximos 7 dias
+        const totalSemanaAtual = this.contasPagar
+            .filter(c => {
+                const d = new Date(c.data);
+                return d >= hoje && d < proximos7Dias;
+            })
+            .reduce((sum, c) => sum + c.valor, 0);
+        
+        // Total semana passada (7 dias atrás)
+        const totalSemanaPassada = this.contasPagar
+            .filter(c => {
+                const d = new Date(c.data);
+                return d >= semanaPassadaInicio && d < hoje;
+            })
+            .reduce((sum, c) => sum + c.valor, 0);
+        
+        const variacao = totalSemanaPassada > 0 
+            ? ((totalSemanaAtual - totalSemanaPassada) / totalSemanaPassada * 100)
+            : 0;
+        
+        return {
+            semanaAtual: totalSemanaAtual,
+            semanaPassada: totalSemanaPassada,
+            variacao: variacao
+        };
+    }
+    
     updateKPIs() {
         const kpis = this.calculateKPIs();
         
@@ -1093,7 +1132,16 @@ class ControladoriaApp {
             `${kpis.contasHoje} contas • ${iconVariacao} ${Math.abs(variacaoPercent)}% vs mês passado`;
         
         document.getElementById('kpiPagarSemana').textContent = this.formatCurrency(kpis.totalPagarSemana);
-        document.getElementById('kpiPagarSemanaQtd').textContent = `${kpis.contasSemana} contas`;
+        
+        // Comparação 7 dias vs semana passada
+        const comparacaoSemana = this.calcularComparacaoSemanal();
+        const variacaoSemana = comparacaoSemana.variacao.toFixed(1);
+        const iconSemana = comparacaoSemana.variacao >= 0 
+            ? `<i class="fas fa-arrow-up text-red-500"></i>` 
+            : `<i class="fas fa-arrow-down text-green-500"></i>`;
+        
+        document.getElementById('kpiPagarSemanaQtd').innerHTML = 
+            `${kpis.contasSemana} contas • ${iconSemana} ${Math.abs(variacaoSemana)}% vs semana passada`;
         
         document.getElementById('kpiProjecao').textContent = this.formatCurrency(kpis.projecaoSaldo);
         document.getElementById('kpiProjecaoStatus').innerHTML = 
@@ -1286,6 +1334,28 @@ class ControladoriaApp {
         }
         
         this.updateChart(days);
+    }
+    
+    // Exportar gráfico como PNG
+    exportChartAsPNG() {
+        if (!this.chart) {
+            alert('Nenhum gráfico disponível para exportar!');
+            return;
+        }
+        
+        // Obter canvas do gráfico
+        const canvas = document.getElementById('cashFlowChart');
+        
+        // Converter para PNG
+        const url = canvas.toDataURL('image/png');
+        
+        // Criar link para download
+        const link = document.createElement('a');
+        link.download = `Engelinhas_FluxoCaixa_${this.formatDateFile(new Date())}.png`;
+        link.href = url;
+        link.click();
+        
+        console.log('✅ Gráfico exportado como PNG');
     }
     
     // ==========================================
@@ -1642,8 +1712,34 @@ class ControladoriaApp {
         
         XLSX.utils.book_append_sheet(wb, ws, 'Auditoria');
         
-        // Gerar arquivo
-        const filename = `Engelinhas_Auditoria_${this.formatDateFile(new Date())}.xlsx`;
+        // Gerar nome do arquivo com filtros aplicados
+        let filenameParts = ['Engelinhas'];
+        
+        // Adicionar período
+        const periodo = document.getElementById('filterPeriod').value;
+        if (periodo === 'hoje') filenameParts.push('Hoje');
+        else if (periodo === '7dias') filenameParts.push('7dias');
+        else if (periodo === '30dias') filenameParts.push('30dias');
+        else if (periodo === 'mes') filenameParts.push('MesAtual');
+        
+        // Adicionar projeto se filtrado
+        const projeto = document.getElementById('filterProject').value;
+        if (projeto) filenameParts.push(projeto.substring(0, 20));
+        
+        // Adicionar categoria se filtrada
+        const categoria = document.getElementById('filterCategoria').value;
+        if (categoria) filenameParts.push(categoria.substring(0, 20));
+        
+        // Adicionar status se filtrado
+        const status = document.getElementById('filterStatus').value;
+        if (status === 'conciliado') filenameParts.push('Conciliado');
+        else if (status === 'nao_provisionado') filenameParts.push('NaoProvisionado');
+        else if (status === 'pendente') filenameParts.push('Pendente');
+        
+        // Adicionar data
+        filenameParts.push(this.formatDateFile(new Date()));
+        
+        const filename = filenameParts.join('_') + '.xlsx';
         XLSX.writeFile(wb, filename);
         
         console.log('✅ Exportação XLSX concluída:', filename);
