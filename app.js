@@ -1367,52 +1367,105 @@ class ControladoriaApp {
         const previsto = [];
         const realizado = [];
         
-        // SEMPRE usar as datas do filtro selecionado
-        const { dataInicial, dataFinal } = this.getDateRange();
+        const periodo = document.getElementById('filterPeriod').value;
         
-        console.log('📊 getChartData:');
-        console.log('  dataInicial:', this.formatDateBR(dataInicial));
-        console.log('  dataFinal:', this.formatDateBR(dataFinal));
-        
-        const startDate = new Date(dataInicial);
-        const endDate = new Date(dataFinal);
-        
-        startDate.setHours(0, 0, 0, 0);
-        endDate.setHours(0, 0, 0, 0);
-        
-        // Gerar labels e dados para cada dia do intervalo
-        const currentDate = new Date(startDate);
-        
-        while (currentDate <= endDate) {
-            labels.push(this.formatDateBR(currentDate));
+        // Para HOJE e ONTEM, mostrar por HORA (24 horas)
+        if (periodo === 'today' || periodo === 'yesterday') {
+            const { dataInicial } = this.getDateRange();
+            const diaEscolhido = new Date(dataInicial);
+            diaEscolhido.setHours(0, 0, 0, 0);
             
-            // Somar valores previstos (Omie)
-            const previstoDay = this.contasPagar
-                .filter(c => {
-                    const d = new Date(c.data);
-                    d.setHours(0, 0, 0, 0);
-                    return d.getTime() === currentDate.getTime();
-                })
-                .reduce((sum, c) => sum + c.valor, 0);
+            console.log('📊 getChartData (por hora):');
+            console.log('  Dia:', this.formatDateBR(diaEscolhido));
             
-            previsto.push(previstoDay);
+            // Gerar 24 pontos (1 por hora)
+            for (let hora = 0; hora < 24; hora++) {
+                labels.push(`${String(hora).padStart(2, '0')}:00`);
+                
+                // Para previsto/realizado, mostrar o total do dia dividido por 24
+                // (ou acumular até a hora atual se for hoje)
+                const horaAtual = new Date().getHours();
+                const isHoje = periodo === 'today';
+                
+                // Somar valores previstos do dia
+                const previstoDay = this.contasPagar
+                    .filter(c => {
+                        const d = new Date(c.data);
+                        d.setHours(0, 0, 0, 0);
+                        return d.getTime() === diaEscolhido.getTime();
+                    })
+                    .reduce((sum, c) => sum + c.valor, 0);
+                
+                // Se for hoje e a hora ainda não passou, não mostrar
+                if (isHoje && hora > horaAtual) {
+                    previsto.push(0);
+                } else {
+                    // Distribuir o total ao longo das horas
+                    previsto.push(previstoDay / 24);
+                }
+                
+                // Somar valores realizados do dia
+                const realizadoDay = this.ofxData
+                    .filter(t => {
+                        const d = new Date(t.data);
+                        d.setHours(0, 0, 0, 0);
+                        return d.getTime() === diaEscolhido.getTime();
+                    })
+                    .reduce((sum, t) => sum + Math.abs(t.valor), 0);
+                
+                if (isHoje && hora > horaAtual) {
+                    realizado.push(0);
+                } else {
+                    realizado.push(realizadoDay / 24);
+                }
+            }
             
-            // Somar valores realizados (OFX)
-            const realizadoDay = this.ofxData
-                .filter(t => {
-                    const d = new Date(t.data);
-                    d.setHours(0, 0, 0, 0);
-                    return d.getTime() === currentDate.getTime();
-                })
-                .reduce((sum, t) => sum + Math.abs(t.valor), 0);
+            console.log('  Labels (24h):', labels);
             
-            realizado.push(realizadoDay);
+        } else {
+            // Para outros períodos, mostrar por DIA
+            const { dataInicial, dataFinal } = this.getDateRange();
             
-            // Próximo dia
-            currentDate.setDate(currentDate.getDate() + 1);
+            console.log('📊 getChartData (por dia):');
+            console.log('  dataInicial:', this.formatDateBR(dataInicial));
+            console.log('  dataFinal:', this.formatDateBR(dataFinal));
+            
+            const startDate = new Date(dataInicial);
+            const endDate = new Date(dataFinal);
+            
+            startDate.setHours(0, 0, 0, 0);
+            endDate.setHours(0, 0, 0, 0);
+            
+            const currentDate = new Date(startDate);
+            
+            while (currentDate <= endDate) {
+                labels.push(this.formatDateBR(currentDate));
+                
+                const previstoDay = this.contasPagar
+                    .filter(c => {
+                        const d = new Date(c.data);
+                        d.setHours(0, 0, 0, 0);
+                        return d.getTime() === currentDate.getTime();
+                    })
+                    .reduce((sum, c) => sum + c.valor, 0);
+                
+                previsto.push(previstoDay);
+                
+                const realizadoDay = this.ofxData
+                    .filter(t => {
+                        const d = new Date(t.data);
+                        d.setHours(0, 0, 0, 0);
+                        return d.getTime() === currentDate.getTime();
+                    })
+                    .reduce((sum, t) => sum + Math.abs(t.valor), 0);
+                
+                realizado.push(realizadoDay);
+                
+                currentDate.setDate(currentDate.getDate() + 1);
+            }
+            
+            console.log('  Labels:', labels);
         }
-        
-        console.log('  Labels:', labels);
         
         return { labels, previsto, realizado };
     }
