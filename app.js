@@ -1101,17 +1101,23 @@ class ControladoriaApp {
             return;
         }
         
-        // INDICADOR VISUAL DE DIVERGÊNCIA: linhas com Previsto ≠ Realizado ficam destacadas
+        // INDICADOR VISUAL DE DIVERGÊNCIA: linhas com Previsto ≠ Realizado ficam destacadas em AZUL
         tbody.innerHTML = page.map(item => {
             const temDivergencia = item.valorPrevisto !== item.valorRealizado && item.valorRealizado > 0;
-            const classDivergencia = temDivergencia ? 'bg-yellow-900 bg-opacity-20' : '';
+            const classDivergencia = temDivergencia ? 'bg-blue-900 bg-opacity-30 border-l-4 border-blue-500' : '';
+            
+            // Truncar categoria se for muito longa (> 40 caracteres)
+            const categoria = item.categoria || 'Sem categoria';
+            const categoriaTruncada = categoria.length > 40 ? categoria.substring(0, 37) + '...' : categoria;
             
             return `
             <tr class="table-row border-b border-gray-800 ${classDivergencia}">
                 <td class="py-3 px-4 text-gray-300">${this.formatDateBR(item.data)}</td>
                 <td class="py-3 px-4 text-gray-300">${this.escapeHtml(item.descricao)}</td>
                 <td class="py-3 px-4 text-gray-400 text-sm">${this.escapeHtml(item.projeto)}</td>
-                <td class="py-3 px-4 text-gray-400 text-sm" title="${this.escapeHtml(item.categoria || 'Sem categoria')}">${this.escapeHtml(item.categoria || 'Sem categoria')}</td>
+                <td class="py-3 px-4 text-gray-400 text-sm cursor-help" title="${this.escapeHtml(categoria)}">
+                    ${this.escapeHtml(categoriaTruncada)}
+                </td>
                 <td class="py-3 px-4 text-right text-gray-300 font-mono">${this.formatCurrency(item.valorPrevisto)}</td>
                 <td class="py-3 px-4 text-right text-gray-300 font-mono">${this.formatCurrency(item.valorRealizado)}</td>
                 <td class="py-3 px-4 text-center">
@@ -1209,10 +1215,14 @@ class ControladoriaApp {
         if (status) {
             const statusMap = {
                 'conciliado': 'CONCILIADO',
-                'nao_provisionado': 'ATRASADO', // Mapeado para o termo do seu CSV
+                'nao_provisionado': 'NAO_PROVISIONADO',
                 'pendente': 'PENDENTE'
             };
-            data = data.filter(item => (item.statusConciliacao || '').toUpperCase().includes(statusMap[status]));
+            const statusBusca = statusMap[status];
+            data = data.filter(item => {
+                const itemStatus = (item.statusConciliacao || '').toUpperCase().replace(/\s+/g, '_');
+                return itemStatus.includes(statusBusca);
+            });
         }
         
         // Filtro de tipo
