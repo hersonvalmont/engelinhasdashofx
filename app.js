@@ -13,7 +13,6 @@ class ControladoriaApp {
         this.itemsPerPage = 20;
         this.chart = null;
         this.saldoBancario = 0; // Saldo real do OFX (BALAMT)
-        this._limpandoDados = false; // Flag para evitar múltiplas chamadas
         
         this.init();
     }
@@ -24,43 +23,7 @@ class ControladoriaApp {
         this.initializeFilters();
         this.loadFromCache(); // Carregar dados do cache
         this.showLoading(false);
-        
-        // Tentar configurar botão de limpar após um delay
-        setTimeout(() => this.setupClearButton(), 500);
-        
         console.log('✅ Dashboard Engelinhas inicializado');
-    }
-    
-    // Configurar botão de limpar de forma robusta
-    setupClearButton() {
-        console.log('🔍 Procurando botão Limpar...');
-        
-        const btnClear = document.getElementById('btnClear');
-        
-        if (btnClear) {
-            console.log('✅ Botão #btnClear encontrado');
-            
-            // Verificar se já tem listener configurado
-            if (btnClear.dataset.listenerConfigured === 'true') {
-                console.log('⚠️ Botão já tem listener configurado, pulando...');
-                return;
-            }
-            
-            // Marcar como configurado para evitar duplicação
-            btnClear.dataset.listenerConfigured = 'true';
-            
-            // Adicionar listener UMA ÚNICA VEZ
-            btnClear.addEventListener('click', (e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                console.log('🗑️ Botão Limpar clicado!');
-                this.limparDados();
-            }, { once: false }); // once: false permite clicar múltiplas vezes
-            
-            console.log('✅ Listener configurado no botão "Limpar Todos os Dados"!');
-        } else {
-            console.error('❌ Botão #btnClear não encontrado no DOM');
-        }
     }
     
     // Event Listeners
@@ -144,8 +107,7 @@ class ControladoriaApp {
         document.getElementById('btnRefresh').addEventListener('click', () => this.refreshData());
         document.getElementById('btnExport').addEventListener('click', () => this.exportToXLSX());
         document.getElementById('btnEditSaldo').addEventListener('click', () => this.editarSaldo());
-        
-        // Botão Limpar será configurado em setupClearButton() com delay
+        document.getElementById('btnClear').addEventListener('click', () => this.limparDados());
         
         // Paginação
         document.getElementById('btnPrevPage').addEventListener('click', () => this.changePage(-1));
@@ -350,7 +312,7 @@ class ControladoriaApp {
                     descricao: conta.descricao,
                     valor: -conta.valor,
                     tipo: conta.tipo,
-                    statusConciliacao: conta.status, // Usa o status real do arquivo
+                    statusConciliacao: conta.status, // MUDANÇA: Usa o status real do arquivo
                     contaOmie: conta,
                     valorPrevisto: conta.valor,
                     valorRealizado: 0,
@@ -360,17 +322,9 @@ class ControladoriaApp {
                 }));
             }
             
-            console.log('📊 Transações conciliadas após importação:', this.transacoesConciliadas.length);
-            
             this.updateDashboard();
             this.saveToCache(); // Salvar no cache
-            
-            // Mensagem de sucesso
-            const mensagemFinal = contasNovas.length > 0
-                ? `✅ ${contasNovas.length} contas a pagar importadas do Omie!`
-                : `⚠️ ${data.length} contas no arquivo, mas todas já foram importadas anteriormente.`;
-            
-            alert(mensagemFinal);
+            alert(`✅ ${data.length} contas a pagar importadas do Omie!`);
             
         } catch (error) {
             console.error('❌ Erro ao processar arquivo Omie:', error);
@@ -711,69 +665,30 @@ class ControladoriaApp {
     
     // Limpar todos os dados importados
     limparDados() {
-        // Proteção contra múltiplas chamadas simultâneas
-        if (this._limpandoDados) {
-            console.warn('⚠️ Limpeza já em andamento, ignorando...');
-            return;
-        }
+        const confirma = confirm(
+            '⚠️ ATENÇÃO: Isso vai apagar TODOS os dados importados (CSV + OFX).\n\n' +
+            'Deseja continuar?'
+        );
         
-        this._limpandoDados = true;
-        console.log('🗑️ Função limparDados() chamada');
-        
-        try {
-            const confirma = confirm(
-                '⚠️ ATENÇÃO: Isso vai apagar TODOS os dados importados (CSV + OFX).\n\n' +
-                'Deseja continuar?'
-            );
+        if (confirma) {
+            this.contasPagar = [];
+            this.ofxData = [];
+            this.transacoesConciliadas = [];
+            this.saldoBancario = 0;
+            this.currentPage = 1;
             
-            if (confirma) {
-                console.log('✅ Usuário confirmou limpeza');
-                
-                // Limpar arrays
-                this.contasPagar = [];
-                this.ofxData = [];
-                this.transacoesConciliadas = [];
-                this.saldoBancario = 0;
-                this.currentPage = 1;
-                
-                console.log('📊 Arrays limpos:', {
-                    contasPagar: this.contasPagar.length,
-                    ofxData: this.ofxData.length,
-                    transacoesConciliadas: this.transacoesConciliadas.length
-                });
-                
-                // Limpar status de importação
-                try {
-                    const ofxStatus = document.getElementById('ofxStatus');
-                    const omieStatus = document.getElementById('omieStatus');
-                    
-                    if (ofxStatus) {
-                        ofxStatus.innerHTML = '<i class="fas fa-info-circle text-gray-500 mr-1"></i>Nenhum arquivo importado';
-                    }
-                    if (omieStatus) {
-                        omieStatus.innerHTML = '<i class="fas fa-info-circle text-gray-500 mr-1"></i>Nenhum arquivo importado';
-                    }
-                } catch (e) {
-                    console.warn('⚠️ Erro ao limpar status:', e);
-                }
-                
-                // Limpar cache do localStorage
-                this.clearCache();
-                console.log('💾 Cache limpo');
-                
-                // Atualizar dashboard
-                this.updateDashboard();
-                console.log('🗑️ Todos os dados foram limpos com sucesso!');
-                
-                alert('✅ Dados limpos com sucesso!');
-            } else {
-                console.log('❌ Usuário cancelou limpeza');
-            }
-        } finally {
-            // Liberar o lock após 500ms para evitar cliques muito rápidos
-            setTimeout(() => {
-                this._limpandoDados = false;
-            }, 500);
+            // Limpar status de importação
+            document.getElementById('ofxStatus').innerHTML = 
+                '<i class="fas fa-info-circle text-gray-500 mr-1"></i>Nenhum arquivo importado';
+            document.getElementById('omieStatus').innerHTML = 
+                '<i class="fas fa-info-circle text-gray-500 mr-1"></i>Nenhum arquivo importado';
+            
+            // Limpar cache do localStorage
+            this.clearCache();
+            
+            this.updateDashboard();
+            console.log('🗑️ Todos os dados foram limpos');
+            alert('✅ Dados limpos com sucesso!');
         }
     }
     
@@ -1961,44 +1876,7 @@ class ControladoriaApp {
     }
 }
 
-// ============================================
-// FUNÇÕES GLOBAIS (disponíveis imediatamente)
-// ============================================
-
-// Registrar funções globais ANTES do DOMContentLoaded
-window.limparTodosDados = function() {
-    console.log('🗑️ limparTodosDados() chamada');
-    if (window.app) {
-        window.app.limparDados();
-    } else {
-        console.error('❌ App não inicializado ainda');
-        alert('❌ Aguarde o carregamento completo da página...');
-    }
-};
-
-// Alias para compatibilidade
-window.clearAllData = window.limparTodosDados;
-window.limparCache = window.limparTodosDados;
-window.resetDashboard = window.limparTodosDados;
-
-console.log('✅ Funções globais registradas:');
-console.log('  - window.limparTodosDados()');
-console.log('  - window.clearAllData()');
-console.log('  - window.limparCache()');
-console.log('  - window.resetDashboard()');
-
-// ============================================
-// INICIALIZAÇÃO DO APP
-// ============================================
-
 // Inicializar aplicação quando DOM estiver pronto
 document.addEventListener('DOMContentLoaded', () => {
-    console.log('📱 DOM carregado, inicializando app...');
     window.app = new ControladoriaApp();
-    
-    console.log('✅ Funções globais registradas:');
-    console.log('  - window.limparTodosDados()');
-    console.log('  - window.clearAllData()');
-    console.log('  - window.limparCache()');
-    console.log('  - window.resetDashboard()');
 });
