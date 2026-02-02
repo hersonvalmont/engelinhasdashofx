@@ -745,6 +745,11 @@ class ControladoriaApp {
     
     saveToCache() {
         try {
+            console.log('💾 Salvando no cache...');
+            console.log(`  - Contas a pagar: ${this.contasPagar.length}`);
+            console.log(`  - Transações OFX: ${this.ofxData.length}`);
+            console.log(`  - Saldo bancário: ${this.saldoBancario}`);
+            
             const cacheData = {
                 contasPagar: this.contasPagar.map(c => ({
                     ...c,
@@ -758,10 +763,29 @@ class ControladoriaApp {
                 timestamp: new Date().toISOString()
             };
             
-            localStorage.setItem('engelinhas_cache', JSON.stringify(cacheData));
-            console.log('💾 Cache salvo:', new Date().toLocaleString());
+            const cacheString = JSON.stringify(cacheData);
+            const cacheSizeKB = (cacheString.length / 1024).toFixed(2);
+            console.log(`  - Tamanho do cache: ${cacheSizeKB} KB`);
+            
+            localStorage.setItem('engelinhas_cache', cacheString);
+            console.log('✅ Cache salvo com sucesso:', new Date().toLocaleString());
+            
+            // Verificar se realmente salvou
+            const verificacao = localStorage.getItem('engelinhas_cache');
+            if (verificacao) {
+                console.log('✅ Verificação: Cache gravado no localStorage');
+            } else {
+                console.error('❌ ERRO: Cache NÃO foi gravado no localStorage!');
+            }
+            
         } catch (error) {
-            console.warn('⚠️ Erro ao salvar cache:', error);
+            console.error('❌ ERRO ao salvar cache:', error);
+            console.error('Stack:', error.stack);
+            
+            // Verificar se é problema de quota
+            if (error.name === 'QuotaExceededError') {
+                alert('⚠️ ATENÇÃO: Memória do navegador cheia! Cache não pode ser salvo. Limpe os dados do site nas configurações do navegador.');
+            }
         }
     }
     
@@ -773,11 +797,14 @@ class ControladoriaApp {
                 return;
             }
             
+            console.log('📦 Cache encontrado, carregando...');
             const cacheData = JSON.parse(cached);
             
             // Verificar se cache tem menos de 7 dias
             const cacheDate = new Date(cacheData.timestamp);
             const daysSince = (new Date() - cacheDate) / (1000 * 60 * 60 * 24);
+            
+            console.log(`📅 Cache de ${cacheDate.toLocaleString()} (${daysSince.toFixed(1)} dias atrás)`);
             
             if (daysSince > 7) {
                 console.log('🕒 Cache expirado (> 7 dias), ignorando');
@@ -786,22 +813,33 @@ class ControladoriaApp {
             }
             
             // Restaurar dados (converter strings de volta para Date)
-            this.contasPagar = cacheData.contasPagar.map(c => ({
-                ...c,
-                data: new Date(c.data)
-            }));
+            if (cacheData.contasPagar && cacheData.contasPagar.length > 0) {
+                this.contasPagar = cacheData.contasPagar.map(c => ({
+                    ...c,
+                    data: new Date(c.data)
+                }));
+                console.log(`✅ ${this.contasPagar.length} contas restauradas do cache`);
+            }
             
-            this.ofxData = cacheData.ofxData.map(t => ({
-                ...t,
-                data: new Date(t.data)
-            }));
+            if (cacheData.ofxData && cacheData.ofxData.length > 0) {
+                this.ofxData = cacheData.ofxData.map(t => ({
+                    ...t,
+                    data: new Date(t.data)
+                }));
+                console.log(`✅ ${this.ofxData.length} transações OFX restauradas do cache`);
+            }
             
-            this.saldoBancario = cacheData.saldoBancario;
+            if (cacheData.saldoBancario !== undefined) {
+                this.saldoBancario = cacheData.saldoBancario;
+                console.log(`✅ Saldo bancário restaurado: ${this.saldoBancario}`);
+            }
             
             // Realizar conciliação
             if (this.ofxData.length > 0 && this.contasPagar.length > 0) {
+                console.log('🔄 Realizando conciliação...');
                 this.realizarConciliacao();
             } else if (this.contasPagar.length > 0) {
+                console.log('📊 Criando transações conciliadas apenas com contas a pagar...');
                 this.transacoesConciliadas = this.contasPagar.map(conta => ({
                     data: conta.data,
                     descricao: conta.descricao,
@@ -829,10 +867,11 @@ class ControladoriaApp {
             }
             
             this.updateDashboard();
-            console.log('✅ Cache carregado:', cacheData.contasPagar.length, 'contas,', cacheData.ofxData.length, 'transações');
+            console.log('✅ Cache carregado com sucesso!');
             
         } catch (error) {
-            console.warn('⚠️ Erro ao carregar cache:', error);
+            console.error('❌ ERRO ao carregar cache:', error);
+            console.error('Stack:', error.stack);
             this.clearCache();
         }
     }
