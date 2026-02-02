@@ -350,7 +350,7 @@ class ControladoriaApp {
                     descricao: conta.descricao,
                     valor: -conta.valor,
                     tipo: conta.tipo,
-                    statusConciliacao: conta.status, // MUDANÇA: Usa o status real do arquivo
+                    statusConciliacao: conta.status, // Usa o status real do arquivo
                     contaOmie: conta,
                     valorPrevisto: conta.valor,
                     valorRealizado: 0,
@@ -360,9 +360,17 @@ class ControladoriaApp {
                 }));
             }
             
+            console.log('📊 Transações conciliadas após importação:', this.transacoesConciliadas.length);
+            
             this.updateDashboard();
             this.saveToCache(); // Salvar no cache
-            alert(`✅ ${data.length} contas a pagar importadas do Omie!`);
+            
+            // Mensagem de sucesso
+            const mensagemFinal = contasNovas.length > 0
+                ? `✅ ${contasNovas.length} contas a pagar importadas do Omie!`
+                : `⚠️ ${data.length} contas no arquivo, mas todas já foram importadas anteriormente.`;
+            
+            alert(mensagemFinal);
             
         } catch (error) {
             console.error('❌ Erro ao processar arquivo Omie:', error);
