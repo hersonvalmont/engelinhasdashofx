@@ -107,7 +107,27 @@ class ControladoriaApp {
         document.getElementById('btnRefresh').addEventListener('click', () => this.refreshData());
         document.getElementById('btnExport').addEventListener('click', () => this.exportToXLSX());
         document.getElementById('btnEditSaldo').addEventListener('click', () => this.editarSaldo());
-        document.getElementById('btnClear').addEventListener('click', () => this.limparDados());
+        
+        // Botão Limpar - com múltiplas tentativas de encontrar o botão
+        const btnClear = document.getElementById('btnClear') || 
+                        document.querySelector('[data-action="clear"]') ||
+                        document.querySelector('button[onclick*="limpar"]');
+        
+        if (btnClear) {
+            // Remove qualquer listener antigo
+            btnClear.replaceWith(btnClear.cloneNode(true));
+            const newBtnClear = document.getElementById('btnClear') || 
+                               document.querySelector('[data-action="clear"]') ||
+                               document.querySelector('button[onclick*="limpar"]');
+            newBtnClear.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                this.limparDados();
+            });
+            console.log('✅ Botão Limpar configurado com sucesso');
+        } else {
+            console.warn('⚠️ Botão Limpar não encontrado no HTML');
+        }
         
         // Paginação
         document.getElementById('btnPrevPage').addEventListener('click', () => this.changePage(-1));
@@ -152,15 +172,31 @@ class ControladoriaApp {
                 throw new Error('Nenhuma transação encontrada no arquivo OFX');
             }
             
-            // Adicionar todas as transações do arquivo
-            this.ofxData = [...this.ofxData, ...ofxData];
+            // PROTEÇÃO CONTRA DUPLICAÇÃO
+            const transacoesExistentes = new Set(
+                this.ofxData.map(t => t.id || `${t.data.getTime()}_${t.descricao}_${t.valor}`)
+            );
             
-            const mensagem = `${ofxData.length} transações importadas`;
+            const transacoesNovas = ofxData.filter(transacao => {
+                const chave = transacao.id || `${transacao.data.getTime()}_${transacao.descricao}_${transacao.valor}`;
+                return !transacoesExistentes.has(chave);
+            });
+            
+            const transacoesDuplicadas = ofxData.length - transacoesNovas.length;
+            
+            // Adicionar apenas transações novas
+            this.ofxData = [...this.ofxData, ...transacoesNovas];
+            
+            const mensagem = transacoesDuplicadas > 0 
+                ? `${transacoesNovas.length} novas transações importadas (${transacoesDuplicadas} duplicadas ignoradas)`
+                : `${transacoesNovas.length} transações importadas`;
             
             status.innerHTML = `<i class="fas fa-check-circle text-green-500 mr-1"></i>${mensagem}`;
             
             console.log('✅ OFX processado:');
             console.log('  Total no arquivo:', ofxData.length);
+            console.log('  Novas importadas:', transacoesNovas.length);
+            console.log('  Duplicadas ignoradas:', transacoesDuplicadas);
             console.log('  Total no sistema:', this.ofxData.length);
             
             // Realizar conciliação automaticamente
@@ -259,15 +295,31 @@ class ControladoriaApp {
                 throw new Error('Nenhuma conta a pagar encontrada no arquivo');
             }
             
-            // Adicionar todas as contas do arquivo
-            this.contasPagar = [...this.contasPagar, ...data];
+            // PROTEÇÃO CONTRA DUPLICAÇÃO
+            const contasExistentes = new Set(
+                this.contasPagar.map(c => `${c.data.getTime()}_${c.descricao}_${c.valor}`)
+            );
             
-            const mensagem = `${data.length} contas a pagar importadas`;
+            const contasNovas = data.filter(conta => {
+                const chave = `${conta.data.getTime()}_${conta.descricao}_${conta.valor}`;
+                return !contasExistentes.has(chave);
+            });
+            
+            const contasDuplicadas = data.length - contasNovas.length;
+            
+            // Adicionar apenas contas novas
+            this.contasPagar = [...this.contasPagar, ...contasNovas];
+            
+            const mensagem = contasDuplicadas > 0 
+                ? `${contasNovas.length} novas contas importadas (${contasDuplicadas} duplicadas ignoradas)`
+                : `${contasNovas.length} contas a pagar importadas`;
             
             status.innerHTML = `<i class="fas fa-check-circle text-green-500 mr-1"></i>${mensagem}`;
             
             console.log('✅ Contas a pagar Omie:');
             console.log('  Total no arquivo:', data.length);
+            console.log('  Novas importadas:', contasNovas.length);
+            console.log('  Duplicadas ignoradas:', contasDuplicadas);
             console.log('  Total no sistema:', this.contasPagar.length);
             
             // Realizar conciliação se houver dados OFX
@@ -633,30 +685,55 @@ class ControladoriaApp {
     
     // Limpar todos os dados importados
     limparDados() {
+        console.log('🗑️ Função limparDados() chamada');
+        
         const confirma = confirm(
             '⚠️ ATENÇÃO: Isso vai apagar TODOS os dados importados (CSV + OFX).\n\n' +
             'Deseja continuar?'
         );
         
         if (confirma) {
+            console.log('✅ Usuário confirmou limpeza');
+            
+            // Limpar arrays
             this.contasPagar = [];
             this.ofxData = [];
             this.transacoesConciliadas = [];
             this.saldoBancario = 0;
             this.currentPage = 1;
             
+            console.log('📊 Arrays limpos:', {
+                contasPagar: this.contasPagar.length,
+                ofxData: this.ofxData.length,
+                transacoesConciliadas: this.transacoesConciliadas.length
+            });
+            
             // Limpar status de importação
-            document.getElementById('ofxStatus').innerHTML = 
-                '<i class="fas fa-info-circle text-gray-500 mr-1"></i>Nenhum arquivo importado';
-            document.getElementById('omieStatus').innerHTML = 
-                '<i class="fas fa-info-circle text-gray-500 mr-1"></i>Nenhum arquivo importado';
+            try {
+                const ofxStatus = document.getElementById('ofxStatus');
+                const omieStatus = document.getElementById('omieStatus');
+                
+                if (ofxStatus) {
+                    ofxStatus.innerHTML = '<i class="fas fa-info-circle text-gray-500 mr-1"></i>Nenhum arquivo importado';
+                }
+                if (omieStatus) {
+                    omieStatus.innerHTML = '<i class="fas fa-info-circle text-gray-500 mr-1"></i>Nenhum arquivo importado';
+                }
+            } catch (e) {
+                console.warn('⚠️ Erro ao limpar status:', e);
+            }
             
             // Limpar cache do localStorage
             this.clearCache();
+            console.log('💾 Cache limpo');
             
+            // Atualizar dashboard
             this.updateDashboard();
-            console.log('🗑️ Todos os dados foram limpos');
+            console.log('🗑️ Todos os dados foram limpos com sucesso!');
+            
             alert('✅ Dados limpos com sucesso!');
+        } else {
+            console.log('❌ Usuário cancelou limpeza');
         }
     }
     
@@ -1847,4 +1924,17 @@ class ControladoriaApp {
 // Inicializar aplicação quando DOM estiver pronto
 document.addEventListener('DOMContentLoaded', () => {
     window.app = new ControladoriaApp();
+    
+    // Função global para limpar dados (pode ser chamada do HTML)
+    window.limparTodosDados = function() {
+        if (window.app) {
+            console.log('🗑️ Chamando limparDados() via função global');
+            window.app.limparDados();
+        } else {
+            console.error('❌ App não inicializado ainda');
+            alert('❌ Erro: Sistema não inicializado. Recarregue a página.');
+        }
+    };
+    
+    console.log('✅ Função global limparTodosDados() registrada');
 });
