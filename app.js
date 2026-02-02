@@ -21,6 +21,7 @@ class ControladoriaApp {
     init() {
         this.setupEventListeners();
         this.initializeFilters();
+        this.loadFromCache(); // Carregar dados do cache
         this.showLoading(false);
         console.log('✅ Dashboard Engelinhas inicializado');
     }
@@ -175,6 +176,7 @@ class ControladoriaApp {
             // Realizar conciliação automaticamente
             this.realizarConciliacao();
             this.updateDashboard();
+            this.saveToCache(); // Salvar no cache
             
             console.log('✅ OFX processado:', ofxData.length, 'transações');
             
@@ -315,6 +317,7 @@ class ControladoriaApp {
             }
             
             this.updateDashboard();
+            this.saveToCache(); // Salvar no cache
             alert(`✅ ${data.length} contas a pagar importadas do Omie!`);
             
         } catch (error) {
@@ -674,10 +677,116 @@ class ControladoriaApp {
             document.getElementById('omieStatus').innerHTML = 
                 '<i class="fas fa-info-circle text-gray-500 mr-1"></i>Nenhum arquivo importado';
             
+            // Limpar cache do localStorage
+            this.clearCache();
+            
             this.updateDashboard();
             console.log('🗑️ Todos os dados foram limpos');
             alert('✅ Dados limpos com sucesso!');
         }
+    }
+    
+    // ==========================================
+    // CACHE COM LOCALSTORAGE
+    // ==========================================
+    
+    saveToCache() {
+        try {
+            const cacheData = {
+                contasPagar: this.contasPagar.map(c => ({
+                    ...c,
+                    data: c.data.toISOString() // Converter Date para string
+                })),
+                ofxData: this.ofxData.map(t => ({
+                    ...t,
+                    data: t.data.toISOString()
+                })),
+                saldoBancario: this.saldoBancario,
+                timestamp: new Date().toISOString()
+            };
+            
+            localStorage.setItem('engelinhas_cache', JSON.stringify(cacheData));
+            console.log('💾 Cache salvo:', new Date().toLocaleString());
+        } catch (error) {
+            console.warn('⚠️ Erro ao salvar cache:', error);
+        }
+    }
+    
+    loadFromCache() {
+        try {
+            const cached = localStorage.getItem('engelinhas_cache');
+            if (!cached) {
+                console.log('📭 Nenhum cache encontrado');
+                return;
+            }
+            
+            const cacheData = JSON.parse(cached);
+            
+            // Verificar se cache tem menos de 7 dias
+            const cacheDate = new Date(cacheData.timestamp);
+            const daysSince = (new Date() - cacheDate) / (1000 * 60 * 60 * 24);
+            
+            if (daysSince > 7) {
+                console.log('🕒 Cache expirado (> 7 dias), ignorando');
+                this.clearCache();
+                return;
+            }
+            
+            // Restaurar dados (converter strings de volta para Date)
+            this.contasPagar = cacheData.contasPagar.map(c => ({
+                ...c,
+                data: new Date(c.data)
+            }));
+            
+            this.ofxData = cacheData.ofxData.map(t => ({
+                ...t,
+                data: new Date(t.data)
+            }));
+            
+            this.saldoBancario = cacheData.saldoBancario;
+            
+            // Realizar conciliação
+            if (this.ofxData.length > 0 && this.contasPagar.length > 0) {
+                this.realizarConciliacao();
+            } else if (this.contasPagar.length > 0) {
+                this.transacoesConciliadas = this.contasPagar.map(conta => ({
+                    data: conta.data,
+                    descricao: conta.descricao,
+                    valor: -conta.valor,
+                    tipo: conta.tipo,
+                    statusConciliacao: conta.status,
+                    contaOmie: conta,
+                    valorPrevisto: conta.valor,
+                    valorRealizado: 0,
+                    projeto: conta.projeto,
+                    categoria: conta.categoria || 'Sem categoria',
+                    origem: 'OMIE'
+                }));
+            }
+            
+            // Atualizar interface
+            if (this.contasPagar.length > 0) {
+                document.getElementById('omieStatus').innerHTML = 
+                    `<i class="fas fa-check-circle text-green-500 mr-1"></i>${this.contasPagar.length} contas (cache)`;
+            }
+            
+            if (this.ofxData.length > 0) {
+                document.getElementById('ofxStatus').innerHTML = 
+                    `<i class="fas fa-check-circle text-green-500 mr-1"></i>${this.ofxData.length} transações (cache)`;
+            }
+            
+            this.updateDashboard();
+            console.log('✅ Cache carregado:', cacheData.contasPagar.length, 'contas,', cacheData.ofxData.length, 'transações');
+            
+        } catch (error) {
+            console.warn('⚠️ Erro ao carregar cache:', error);
+            this.clearCache();
+        }
+    }
+    
+    clearCache() {
+        localStorage.removeItem('engelinhas_cache');
+        console.log('🗑️ Cache limpo');
     }
     
     // ==========================================
@@ -1106,18 +1215,12 @@ class ControladoriaApp {
             const temDivergencia = item.valorPrevisto !== item.valorRealizado && item.valorRealizado > 0;
             const classDivergencia = temDivergencia ? 'bg-blue-900 bg-opacity-30 border-l-4 border-blue-500' : '';
             
-            // Truncar categoria se for muito longa (> 40 caracteres)
-            const categoria = item.categoria || 'Sem categoria';
-            const categoriaTruncada = categoria.length > 40 ? categoria.substring(0, 37) + '...' : categoria;
-            
             return `
             <tr class="table-row border-b border-gray-800 ${classDivergencia}">
                 <td class="py-3 px-4 text-gray-300">${this.formatDateBR(item.data)}</td>
                 <td class="py-3 px-4 text-gray-300">${this.escapeHtml(item.descricao)}</td>
                 <td class="py-3 px-4 text-gray-400 text-sm">${this.escapeHtml(item.projeto)}</td>
-                <td class="py-3 px-4 text-gray-400 text-sm cursor-help" title="${this.escapeHtml(categoria)}">
-                    ${this.escapeHtml(categoriaTruncada)}
-                </td>
+                <td class="py-3 px-4 text-gray-400 text-sm">${this.escapeHtml(item.categoria || 'Sem categoria')}</td>
                 <td class="py-3 px-4 text-right text-gray-300 font-mono">${this.formatCurrency(item.valorPrevisto)}</td>
                 <td class="py-3 px-4 text-right text-gray-300 font-mono">${this.formatCurrency(item.valorRealizado)}</td>
                 <td class="py-3 px-4 text-center">
