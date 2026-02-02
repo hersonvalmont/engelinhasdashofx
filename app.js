@@ -314,13 +314,19 @@ class ControladoriaApp {
                         
                         const values = line.split(separator).map(v => v.trim().replace(/"/g, ''));
                         
+                        // FILTRO: ignorar linhas de SALDO e linhas sem data válida
+                        const descricao = columnMap.descricao ? values[columnMap.descricao] : '';
+                        if (descricao.toUpperCase().includes('SALDO') || descricao.trim() === '') {
+                            continue; // Pular linha
+                        }
+                        
                         const data = this.parseOmieDate(values[columnMap.data]);
                         const valor = this.parseOmieValor(values[columnMap.valor]);
-                        const descricao = columnMap.descricao ? values[columnMap.descricao] : 'Sem descrição';
                         const projeto = columnMap.projeto ? values[columnMap.projeto] : 'Sem projeto';
                         const status = columnMap.status !== undefined ? values[columnMap.status] : 'PENDENTE';
                         
-                        if (data && valor) {
+                        // FILTRO: só incluir se tiver data E valor > 0
+                        if (data && valor && valor > 0) {
                             contas.push({
                                 id: i,
                                 data: data,
@@ -388,13 +394,19 @@ class ControladoriaApp {
                         const row = jsonData[i];
                         if (!row || row.length === 0) continue;
                         
+                        const descricao = columnMap.descricao ? row[columnMap.descricao] : '';
+                        // FILTRO: ignorar linhas de SALDO e linhas sem descrição válida
+                        if (descricao && descricao.toUpperCase().includes('SALDO')) {
+                            continue;
+                        }
+                        
                         const data = this.parseOmieDate(row[columnMap.data]);
                         const valor = this.parseOmieValor(row[columnMap.valor]);
-                        const descricao = columnMap.descricao ? row[columnMap.descricao] : 'Sem descrição';
                         const projeto = columnMap.projeto ? row[columnMap.projeto] : 'Sem projeto';
                         const status = columnMap.status !== undefined ? row[columnMap.status] : 'PENDENTE';
                         
-                        if (data && valor) {
+                        // FILTRO: só incluir se tiver data E valor > 0
+                        if (data && valor && valor > 0) {
                             contas.push({
                                 id: i,
                                 data: data,
