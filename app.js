@@ -1167,8 +1167,6 @@ class ControladoriaApp {
             { wch: 20 }, // Status
             { wch: 10 }  // Tipo
         ];
-            { wch: 10 }  // Tipo
-        ];
         
         XLSX.utils.book_append_sheet(wb, ws, 'Auditoria');
         
