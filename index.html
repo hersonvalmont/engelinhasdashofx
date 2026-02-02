@@ -338,6 +338,19 @@
             </div>
         </div>
         
+        <!-- Top 5 Categorias -->
+        <div class="glass-effect rounded-lg p-6 mb-6">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-xl font-bold text-white">
+                    <i class="fas fa-trophy mr-2 text-yellow-500"></i>
+                    Top 5 Categorias com Maior Gasto
+                </h3>
+            </div>
+            <div id="top5Categorias" class="space-y-3">
+                <p class="text-gray-500 text-center py-4">Nenhum dado disponível</p>
+            </div>
+        </div>
+        
         <!-- Gráfico Central -->
         <div class="glass-effect rounded-lg p-6 mb-6">
             <div class="flex items-center justify-between mb-4">
@@ -402,17 +415,38 @@
             </div>
             
             <!-- Paginação -->
-            <div class="flex items-center justify-between mt-4 pt-4 border-t border-gray-800">
+            <div class="flex items-center justify-between mt-4 pt-4 border-t border-gray-800 flex-wrap gap-4">
                 <div class="text-sm text-gray-400">
                     Mostrando <span id="showingStart">0</span> a <span id="showingEnd">0</span> de <span id="showingTotal">0</span>
                 </div>
-                <div class="flex gap-2">
+                
+                <div class="flex items-center gap-3">
+                    <!-- Botão Anterior -->
                     <button id="btnPrevPage" class="px-3 py-1 bg-gray-800 hover:bg-gray-700 rounded text-sm transition disabled:opacity-50 disabled:cursor-not-allowed">
                         <i class="fas fa-chevron-left"></i>
                     </button>
-                    <span class="px-3 py-1 text-sm">Página <span id="currentPage">1</span></span>
+                    
+                    <!-- Ir para página -->
+                    <div class="flex items-center gap-2">
+                        <span class="text-sm text-gray-400">Página</span>
+                        <input 
+                            type="number" 
+                            id="inputGoToPage" 
+                            min="1" 
+                            value="1"
+                            class="w-16 px-2 py-1 bg-gray-800 border border-gray-700 rounded text-sm text-center focus:border-blue-500 focus:outline-none"
+                        >
+                        <span class="text-sm text-gray-400">de <span id="totalPages">1</span></span>
+                    </div>
+                    
+                    <!-- Botão Próximo -->
                     <button id="btnNextPage" class="px-3 py-1 bg-gray-800 hover:bg-gray-700 rounded text-sm transition disabled:opacity-50 disabled:cursor-not-allowed">
                         <i class="fas fa-chevron-right"></i>
+                    </button>
+                    
+                    <!-- Botão Mostrar Tudo -->
+                    <button id="btnShowAll" class="px-3 py-1 bg-blue-600 hover:bg-blue-700 rounded text-sm transition ml-2">
+                        <i class="fas fa-list mr-1"></i>Mostrar Tudo
                     </button>
                 </div>
             </div>
