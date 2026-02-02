@@ -1546,11 +1546,62 @@ class ControladoriaApp {
     // Atualizar dashboard completo (KPIs + Gráfico + Tabela)
     updateDashboard() {
         this.updateKPIs();
-        this.updateChart(30);
+        this.updateChartBasedOnFilter(); // Gráfico agora se adapta ao filtro
         this.updateProjectFilter();
         this.updateCategoriaFilter();
         this.updateTop5Categorias();
         this.updateTable();
+    }
+    
+    // Atualizar gráfico baseado no filtro de período selecionado
+    updateChartBasedOnFilter() {
+        const periodo = document.getElementById('filterPeriod').value;
+        
+        let days = 30; // padrão
+        
+        switch (periodo) {
+            case 'today':
+            case 'yesterday':
+                days = 1; // Mostrar apenas 1 dia
+                break;
+            case 'week':
+                days = 7; // Mostrar 7 dias
+                break;
+            case 'month':
+                days = 30; // Mostrar 30 dias
+                break;
+            case 'custom':
+                // Calcular dias entre as datas selecionadas
+                const selectedDates = this.dateRangePicker?.selectedDates || [];
+                if (selectedDates.length === 2) {
+                    const diff = Math.abs(selectedDates[1] - selectedDates[0]);
+                    days = Math.ceil(diff / (1000 * 60 * 60 * 24)) + 1;
+                } else {
+                    days = 30; // padrão se não tiver intervalo
+                }
+                break;
+            default:
+                days = 30;
+        }
+        
+        // Limitar entre 1 e 90 dias para performance
+        days = Math.max(1, Math.min(days, 90));
+        
+        this.updateChart(days);
+        
+        // Atualizar botões 7/30 dias se necessário
+        document.getElementById('btnChartWeek').classList.remove('bg-blue-600');
+        document.getElementById('btnChartMonth').classList.remove('bg-blue-600');
+        document.getElementById('btnChartWeek').classList.add('bg-gray-800');
+        document.getElementById('btnChartMonth').classList.add('bg-gray-800');
+        
+        if (days === 7) {
+            document.getElementById('btnChartWeek').classList.add('bg-blue-600');
+            document.getElementById('btnChartWeek').classList.remove('bg-gray-800');
+        } else if (days === 30) {
+            document.getElementById('btnChartMonth').classList.add('bg-blue-600');
+            document.getElementById('btnChartMonth').classList.remove('bg-gray-800');
+        }
     }
     
     getFilteredData() {
@@ -1735,14 +1786,17 @@ class ControladoriaApp {
     updateTop5Categorias() {
         const container = document.getElementById('top5Categorias');
         
-        if (this.transacoesConciliadas.length === 0) {
+        // USAR DADOS FILTRADOS (respeitando período selecionado)
+        const dadosFiltrados = this.getFilteredData();
+        
+        if (dadosFiltrados.length === 0) {
             container.innerHTML = '<p class="text-gray-500 text-center py-4">Nenhum dado disponível</p>';
             return;
         }
         
         // Agrupar por categoria e somar valores
         const categoriaMap = new Map();
-        this.transacoesConciliadas.forEach(item => {
+        dadosFiltrados.forEach(item => {
             const cat = item.categoria || 'Sem categoria';
             const valor = item.valorPrevisto || 0;
             
