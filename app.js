@@ -164,6 +164,13 @@ class ControladoriaApp {
     parseOFXManual(text) {
         const transactions = [];
         
+        // Extrair saldo bancário real (BALAMT)
+        const balAmtMatch = text.match(/<BALAMT>([^<]+)/);
+        if (balAmtMatch) {
+            this.saldoBancario = parseFloat(balAmtMatch[1]);
+            console.log('✅ Saldo bancário OFX:', this.saldoBancario);
+        }
+        
         // Extrair transações (STMTTRN)
         const stmtRegex = /<STMTTRN>([\s\S]*?)<\/STMTTRN>/g;
         let match;
@@ -189,19 +196,6 @@ class ControladoriaApp {
                 });
             }
         }
-        
-        // CALCULAR SALDO INICIAL baseado nas transações
-        const balAmtMatch = text.match(/<BALAMT>([^<]+)/);
-        const saldoFinal = balAmtMatch ? parseFloat(balAmtMatch[1]) : 0;
-        
-        // Saldo Inicial = Saldo Final - Soma das Transações
-        const somaTransacoes = transactions.reduce((sum, t) => sum + t.valor, 0);
-        this.saldoBancario = saldoFinal - somaTransacoes;
-        
-        console.log('📊 Cálculo de Saldo OFX:');
-        console.log('  BALAMT (Saldo Final):', this.formatCurrency(saldoFinal));
-        console.log('  Soma das Transações:', this.formatCurrency(somaTransacoes));
-        console.log('  ✅ Saldo Inicial Calculado:', this.formatCurrency(this.saldoBancario));
         
         return transactions;
     }
